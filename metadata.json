@@ -1,0 +1,6 @@
+{
+  "name": "SuperLista - Lista de Compras",
+  "description": "Um gerenciador de lista de compras otimizado para uso móvel com uma mão, focado em rapidez, acessibilidade e clareza visual no supermercado.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
