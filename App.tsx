@@ -5,7 +5,7 @@ import { Header } from './components/Header';
 import { ItemCard } from './components/ItemCard';
 import { SettingsModal } from './components/SettingsModal';
 import { ExportModal } from './components/ExportModal';
-import { ChevronUp } from 'lucide-react';
+import { ChevronUp, Check } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useKeyboardAvoidance } from './hooks/useKeyboardAvoidance';
@@ -48,15 +48,30 @@ const App: React.FC = () => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [deletedItemInfo, setDeletedItemInfo] = useState<{ item: ShoppingItem; originalIndex: number } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { isKeyboardActive, keyboardSpacerHeight } = useKeyboardAvoidance();
+
+  const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToastMessage(msg);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  }, []);
 
   useEffect(() => {
     return () => {
       if (undoTimerRef.current) {
         clearTimeout(undoTimerRef.current);
+      }
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
       }
     };
   }, []);
@@ -75,7 +90,7 @@ const App: React.FC = () => {
 
   const totalValue = useMemo(() => items.filter(i => i.isAvailable).reduce((acc, curr) => acc + (curr.unitPrice * curr.quantity), 0), [items]);
 
-  const saveToHistory = useCallback(() => {
+  const saveToHistory = useCallback((clearAfterSave: boolean = false) => {
     if (items.length === 0) return;
 
     const newList: SavedList = {
@@ -91,10 +106,15 @@ const App: React.FC = () => {
       savedHistory: [newList, ...(prev.savedHistory || [])]
     }));
 
-    setFeedback('Lista salva no histórico');
-    setTimeout(() => setFeedback(null), 2000);
+    if (clearAfterSave) {
+      setItems([]);
+      showToast('Lista salva e limpa com sucesso.');
+    } else {
+      showToast('Lista salva no histórico.');
+    }
+
     setShowExportModal(false);
-  }, [items, totalValue]);
+  }, [items, totalValue, showToast]);
 
   useEffect(() => {
     const savedItems = localStorage.getItem(STORAGE_KEY);
@@ -511,8 +531,9 @@ const App: React.FC = () => {
 
       {/* Dynamic temporary spacer for keyboard avoidance (smoothly collapses to 0 when keyboard closes) */}
       <div 
+        id="keyboard-avoidance-spacer"
         style={{ height: keyboardSpacerHeight }} 
-        className="transition-[height] duration-300 ease-out pointer-events-none w-full shrink-0"
+        className="pointer-events-none w-full shrink-0"
         aria-hidden="true" 
       />
     </main>
@@ -547,6 +568,20 @@ const App: React.FC = () => {
               </svg>
               Desfazer
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toast / Snackbar de Confirmação Geral */}
+      {toastMessage && (
+        <div className={`fixed ${isKeyboardActive ? 'bottom-4' : 'bottom-24'} left-4 right-4 max-w-sm mx-auto z-50 animate-in slide-in-from-bottom-4 fade-in duration-200 pointer-events-none`}>
+          <div className="bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-center gap-2.5 border border-gray-800">
+            <div className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0">
+              <Check className="w-3.5 h-3.5" strokeWidth={3} />
+            </div>
+            <span className="text-xs font-bold text-gray-100 text-center">
+              {toastMessage}
+            </span>
           </div>
         </div>
       )}

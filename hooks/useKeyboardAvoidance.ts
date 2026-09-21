@@ -10,93 +10,140 @@ export function useKeyboardAvoidance() {
 
   const activeElementRef = useRef<HTMLElement | null>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // Measure keyboard height using Visual Viewport API
-  const getKeyboardHeight = useCallback((): number => {
+  // Clear any scheduled scroll passes
+  const clearScrollTimeouts = useCallback(() => {
+    scrollTimeoutsRef.current.forEach(t => clearTimeout(t));
+    scrollTimeoutsRef.current = [];
+  }, []);
+
+  // Determine dynamic keyboard height
+  const getDynamicKeyboardHeight = useCallback((): number => {
     if (typeof window === 'undefined') return 0;
+
+    // 1. If visualViewport has reported a significant shrinkage, use real measured difference
     if (window.visualViewport) {
       const heightDiff = window.innerHeight - window.visualViewport.height;
-      return heightDiff > 100 ? heightDiff : 0;
+      if (heightDiff > 60) {
+        return heightDiff;
+      }
     }
+
+    // 2. If on mobile / touch screen device (or small screen), dynamically estimate realistic keyboard height
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isMobileWidth = window.innerWidth <= 820;
+
+    if (isTouch || isMobileWidth) {
+      // Mobile virtual keyboards typically occupy 38% to 46% of window height in portrait mode
+      const estimated = Math.round(window.innerHeight * 0.42);
+      return Math.min(Math.max(estimated, 270), 400);
+    }
+
     return 0;
   }, []);
 
   // Calculate visible area above keyboard and scroll smoothly if obscured
-  const scrollToFieldIfNeeded = useCallback((element: HTMLElement | null) => {
+  const scrollToFieldIfNeeded = useCallback((element: HTMLElement | null, instant = false) => {
     if (!element || !element.isConnected) return;
 
-    const rect = element.getBoundingClientRect();
+    // Find the enclosing card if editing within a list item
+    const cardEl = (element.closest('.item-card') || element) as HTMLElement;
+    const inputRect = element.getBoundingClientRect();
+    const cardRect = cardEl.getBoundingClientRect();
 
-    // Determine the visible area bottom boundary
-    let visibleBottom = window.innerHeight;
-    let viewportOffsetTop = 0;
+    // The boundary of interest is the bottom of the card/input
+    const targetBottom = Math.max(inputRect.bottom, cardRect.bottom);
+    const targetTop = Math.min(inputRect.top, cardRect.top);
 
+    // Determine the dynamic keyboard height and visible bottom boundary
+    const kbHeight = getDynamicKeyboardHeight();
+    let visibleBottom = window.innerHeight - kbHeight;
+
+    // If visualViewport provides exact dimensions, use it
     if (window.visualViewport) {
-      viewportOffsetTop = window.visualViewport.offsetTop || 0;
-      visibleBottom = window.visualViewport.height + viewportOffsetTop;
-    }
-
-    // Also account for the fixed footer if it's visible on screen and not hidden
-    const footerEl = document.querySelector('footer');
-    if (footerEl) {
-      const footerRect = footerEl.getBoundingClientRect();
-      // If footer is visible in the viewport and above keyboard line
-      if (footerRect.top > 120 && footerRect.top < visibleBottom && !footerEl.classList.contains('translate-y-full')) {
-        visibleBottom = footerRect.top;
+      const vv = window.visualViewport;
+      const vvDiff = window.innerHeight - vv.height;
+      if (vvDiff > 60) {
+        visibleBottom = vv.height + (vv.offsetTop || 0);
       }
     }
 
-    // Comfortable margin above the keyboard (20–40px)
-    const MARGIN_BOTTOM = 32;
-    const MARGIN_TOP = 20;
+    // Comfortable margin between the bottom of the item and the keyboard (24px)
+    const MARGIN_BOTTOM = 24;
+    const MARGIN_TOP = 16;
 
-    // Check if element is partially or fully hidden
-    const isObscuredBelow = (rect.bottom + MARGIN_BOTTOM) > visibleBottom;
-    const isObscuredAbove = rect.top < MARGIN_TOP;
+    const maxAllowedBottom = visibleBottom - MARGIN_BOTTOM;
+
+    // Check if element is obscured by keyboard or scrolled above viewport
+    const isObscuredBelow = targetBottom > maxAllowedBottom;
+    const isObscuredAbove = targetTop < MARGIN_TOP;
 
     // If already fully visible with comfortable margin, avoid unnecessary movement
     if (!isObscuredBelow && !isObscuredAbove) {
       return;
     }
 
-    let targetScrollY = window.scrollY;
+    const currentScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+    let targetScrollY = currentScrollY;
 
     if (isObscuredBelow) {
-      const overflow = (rect.bottom + MARGIN_BOTTOM) - visibleBottom;
-      targetScrollY = window.scrollY + overflow;
+      const overflow = targetBottom - maxAllowedBottom;
+      targetScrollY = currentScrollY + overflow;
     } else if (isObscuredAbove) {
-      targetScrollY = Math.max(0, window.scrollY + rect.top - MARGIN_TOP);
+      targetScrollY = Math.max(0, currentScrollY + targetTop - MARGIN_TOP);
     }
 
-    // Smooth scroll animation
+    // Scroll to position
     window.scrollTo({
       top: targetScrollY,
-      behavior: 'smooth'
+      behavior: instant ? 'auto' : 'smooth'
     });
+  }, [getDynamicKeyboardHeight]);
+
+  // Ensure bottom spacer has headroom immediately in DOM so window can scroll down
+  const ensureHeadroom = useCallback((height: number) => {
+    setKeyboardSpacerHeight(height);
+    const spacerEl = document.getElementById('keyboard-avoidance-spacer');
+    if (spacerEl) {
+      spacerEl.style.transition = 'none'; // Instant expansion so document.scrollHeight is ready immediately
+      spacerEl.style.height = `${height}px`;
+    }
   }, []);
 
-  // Schedule multiple passes to ensure alignment during/after keyboard animation
+  // Schedule coordinated scroll passes to handle keyboard opening animation
   const scheduleScroll = useCallback((element: HTMLElement | null) => {
     if (!element) return;
     activeElementRef.current = element;
 
+    clearScrollTimeouts();
+
+    const kbHeight = getDynamicKeyboardHeight();
+    const neededSpacer = Math.max(kbHeight + 60, 360);
+    ensureHeadroom(neededSpacer);
+
     // Pass 1: Next animation frame
     requestAnimationFrame(() => {
-      scrollToFieldIfNeeded(element);
+      scrollToFieldIfNeeded(element, false);
     });
 
-    // Pass 2: Mid-animation (120ms)
-    setTimeout(() => {
-      scrollToFieldIfNeeded(element);
+    // Pass 2: 120ms (during keyboard slide-in)
+    const t1 = setTimeout(() => {
+      scrollToFieldIfNeeded(element, false);
     }, 120);
 
-    // Pass 3: Keyboard fully open (320ms)
-    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-    scrollTimeoutRef.current = setTimeout(() => {
-      scrollToFieldIfNeeded(element);
-    }, 320);
-  }, [scrollToFieldIfNeeded]);
+    // Pass 3: 280ms (keyboard nearly fully open)
+    const t2 = setTimeout(() => {
+      scrollToFieldIfNeeded(element, false);
+    }, 280);
+
+    // Pass 4: 420ms (final stabilization pass)
+    const t3 = setTimeout(() => {
+      scrollToFieldIfNeeded(element, false);
+    }, 420);
+
+    scrollTimeoutsRef.current.push(t1, t2, t3);
+  }, [clearScrollTimeouts, getDynamicKeyboardHeight, ensureHeadroom, scrollToFieldIfNeeded]);
 
   useEffect(() => {
     // Focus In handler: identify which field received focus
@@ -104,11 +151,9 @@ export function useKeyboardAvoidance() {
       const target = e.target as HTMLElement;
       if (!target) return;
 
-      // Only handle inputs / textareas
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
       if (!isInput) return;
 
-      // Clear pending blur if switching between items
       if (blurTimeoutRef.current) {
         clearTimeout(blurTimeoutRef.current);
         blurTimeoutRef.current = null;
@@ -116,12 +161,6 @@ export function useKeyboardAvoidance() {
 
       activeElementRef.current = target;
       setIsKeyboardActive(true);
-
-      // Provide dynamic temporary headroom so bottom-most items can scroll up freely
-      const measuredKb = getKeyboardHeight();
-      const spacer = Math.max(measuredKb, 340);
-      setKeyboardSpacerHeight(spacer);
-
       scheduleScroll(target);
     };
 
@@ -130,8 +169,21 @@ export function useKeyboardAvoidance() {
       if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
 
       blurTimeoutRef.current = setTimeout(() => {
+        // Only collapse if activeElement is not another input
+        const active = document.activeElement;
+        const isStillInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+        if (isStillInput) return;
+
         activeElementRef.current = null;
         setIsKeyboardActive(false);
+        clearScrollTimeouts();
+
+        // Smoothly collapse spacer back to 0
+        const spacerEl = document.getElementById('keyboard-avoidance-spacer');
+        if (spacerEl) {
+          spacerEl.style.transition = 'height 250ms cubic-bezier(0.4, 0, 0.2, 1)';
+          spacerEl.style.height = '0px';
+        }
         setKeyboardSpacerHeight(0);
       }, 160);
     };
@@ -146,8 +198,6 @@ export function useKeyboardAvoidance() {
         }
         activeElementRef.current = customEvent.detail;
         setIsKeyboardActive(true);
-        const measuredKb = getKeyboardHeight();
-        setKeyboardSpacerHeight(Math.max(measuredKb, 340));
         scheduleScroll(customEvent.detail);
       }
     };
@@ -159,14 +209,26 @@ export function useKeyboardAvoidance() {
     // VisualViewport listener for keyboard height changes
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     const handleViewportResize = () => {
-      const kbHeight = getKeyboardHeight();
-      if (kbHeight < 50) {
-        // Keyboard dismissed (e.g. Android back button or keyboard down button)
-        setIsKeyboardActive(false);
-        setKeyboardSpacerHeight(0);
-      } else if (activeElementRef.current) {
-        setKeyboardSpacerHeight(Math.max(kbHeight, 340));
-        scheduleScroll(activeElementRef.current);
+      if (vv) {
+        const heightDiff = window.innerHeight - vv.height;
+        if (heightDiff < 50) {
+          // Keyboard dismissed on Android (e.g. back button or hide keyboard button)
+          const active = document.activeElement;
+          const isStillInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+          if (!isStillInput) {
+            setIsKeyboardActive(false);
+            const spacerEl = document.getElementById('keyboard-avoidance-spacer');
+            if (spacerEl) {
+              spacerEl.style.transition = 'height 250ms ease-out';
+              spacerEl.style.height = '0px';
+            }
+            setKeyboardSpacerHeight(0);
+          }
+        } else if (activeElementRef.current) {
+          const neededSpacer = Math.max(heightDiff + 60, 360);
+          ensureHeadroom(neededSpacer);
+          scrollToFieldIfNeeded(activeElementRef.current, false);
+        }
       }
     };
 
@@ -186,9 +248,9 @@ export function useKeyboardAvoidance() {
       }
 
       if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      clearScrollTimeouts();
     };
-  }, [getKeyboardHeight, scheduleScroll]);
+  }, [clearScrollTimeouts, ensureHeadroom, scheduleScroll, scrollToFieldIfNeeded]);
 
   return {
     isKeyboardActive,

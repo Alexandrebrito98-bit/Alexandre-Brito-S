@@ -25,12 +25,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     settings.budgetLimit === 0 ? '' : settings.budgetLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
   const [viewingHistory, setViewingHistory] = useState<SavedList | null>(null);
+  const [historyToast, setHistoryToast] = useState<string | null>(null);
+  const historyToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Estados para gerenciamento de mercados
   const [newMarketName, setNewMarketName] = useState('');
   const [editingMarketId, setEditingMarketId] = useState<string | null>(null);
   const [editingMarketName, setEditingMarketName] = useState('');
   const marketsSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (historyToastTimerRef.current) {
+        clearTimeout(historyToastTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (initialSection === 'markets' && marketsSectionRef.current) {
@@ -103,6 +113,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const updated: AppSettings = { ...localSettings, markets: updatedMarkets };
     setLocalSettings(updated);
     onUpdate(updated);
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    const newHistory = (localSettings.savedHistory || []).filter(h => h.id !== id);
+    const updated: AppSettings = { ...localSettings, savedHistory: newHistory };
+    setLocalSettings(updated);
+    onUpdate(updated);
+
+    if (historyToastTimerRef.current) {
+      clearTimeout(historyToastTimerRef.current);
+    }
+    setHistoryToast('Histórico excluído com sucesso.');
+    historyToastTimerRef.current = setTimeout(() => {
+      setHistoryToast(null);
+    }, 2500);
   };
 
   const handleConfirm = () => {
@@ -488,12 +513,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </svg>
                         </button>
                         <button 
-                          onClick={() => {
-                            const newHistory = localSettings.savedHistory.filter(h => h.id !== history.id);
-                            setLocalSettings(prev => ({ ...prev, savedHistory: newHistory }));
-                            onUpdate({ ...localSettings, savedHistory: newHistory });
-                          }}
-                          className="p-2 text-red-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                          onClick={() => handleDeleteHistory(history.id)}
+                          title="Excluir histórico"
+                          aria-label="Excluir histórico"
+                          className="p-2 text-red-400 hover:text-red-600 transition-colors opacity-90 sm:opacity-0 sm:group-hover:opacity-100 hover:opacity-100 active:scale-90"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -522,6 +545,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
           </div>
         </>
+        )}
+
+        {/* Toast / Snackbar de Confirmação de Exclusão do Histórico */}
+        {historyToast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-none px-4 w-full max-w-xs">
+            <div className="bg-gray-900/95 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-center gap-2 border border-gray-800">
+              <div className="w-4 h-4 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0">
+                <Check className="w-3 h-3" strokeWidth={3} />
+              </div>
+              <span className="text-gray-100">{historyToast}</span>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -150,7 +150,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   useEffect(() => {
     if (isEditingName && editInputRef.current) {
-      editInputRef.current.focus();
+      editInputRef.current.focus({ preventScroll: true });
       editInputRef.current.select();
       window.dispatchEvent(new CustomEvent('superlist:field-focused', { detail: editInputRef.current }));
     }
