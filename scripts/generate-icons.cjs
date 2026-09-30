@@ -62,6 +62,7 @@ function renderPng(svg, width, height, outPath) {
 // Generate Version 2 (cache-busted) PWA icons
 renderPng(standardSvg, 192, 192, path.join(publicDir, 'icon-192-v2.png'));
 renderPng(standardSvg, 512, 512, path.join(publicDir, 'icon-512-v2.png'));
+renderPng(maskableSvg, 192, 192, path.join(publicDir, 'icon-maskable-192-v2.png'));
 renderPng(maskableSvg, 512, 512, path.join(publicDir, 'icon-maskable-512-v2.png'));
 renderPng(standardSvg, 180, 180, path.join(publicDir, 'apple-touch-icon-v2.png'));
 renderPng(standardSvg, 32, 32, path.join(publicDir, 'favicon-32x32-v2.png'));
@@ -70,6 +71,7 @@ renderPng(standardSvg, 16, 16, path.join(publicDir, 'favicon-16x16-v2.png'));
 // Also maintain legacy paths for backwards compatibility
 renderPng(standardSvg, 192, 192, path.join(publicDir, 'pwa-192x192.png'));
 renderPng(standardSvg, 512, 512, path.join(publicDir, 'pwa-512x512.png'));
+renderPng(maskableSvg, 192, 192, path.join(publicDir, 'pwa-maskable-192x192.png'));
 renderPng(maskableSvg, 512, 512, path.join(publicDir, 'pwa-maskable-512x512.png'));
 renderPng(standardSvg, 180, 180, path.join(publicDir, 'apple-touch-icon.png'));
 renderPng(standardSvg, 32, 32, path.join(publicDir, 'favicon-32x32.png'));

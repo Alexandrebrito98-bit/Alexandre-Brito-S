@@ -12,6 +12,11 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       updateSW(true);
     },
   });
+
+  // Força verificação imediata de atualizações no Service Worker e Manifesto ao abrir o app instalado
+  navigator.serviceWorker.ready.then((reg) => {
+    reg.update().catch(() => {});
+  });
 }
 
 const rootElement = document.getElementById('root');

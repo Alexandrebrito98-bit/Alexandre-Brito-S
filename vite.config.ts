@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
             'favicon-16x16-v2.png',
             'icon-192-v2.png',
             'icon-512-v2.png',
+            'icon-maskable-192-v2.png',
             'icon-maskable-512-v2.png',
             'favicon.svg',
             'icon.svg',
@@ -30,6 +31,7 @@ export default defineConfig(({ mode }) => {
             'favicon-16x16.png',
             'pwa-192x192.png',
             'pwa-512x512.png',
+            'pwa-maskable-192x192.png',
             'pwa-maskable-512x512.png'
           ],
           manifest: {
@@ -55,6 +57,12 @@ export default defineConfig(({ mode }) => {
                 sizes: '512x512',
                 type: 'image/png',
                 purpose: 'any'
+              },
+              {
+                src: '/icon-maskable-192-v2.png',
+                sizes: '192x192',
+                type: 'image/png',
+                purpose: 'maskable'
               },
               {
                 src: '/icon-maskable-512-v2.png',
