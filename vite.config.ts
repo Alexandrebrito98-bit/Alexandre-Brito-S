@@ -15,6 +15,14 @@ export default defineConfig(({ mode }) => {
         VitePWA({
           registerType: 'autoUpdate',
           includeAssets: [
+            'favicon-v2.svg',
+            'icon-v2.svg',
+            'apple-touch-icon-v2.png',
+            'favicon-32x32-v2.png',
+            'favicon-16x16-v2.png',
+            'icon-192-v2.png',
+            'icon-512-v2.png',
+            'icon-maskable-512-v2.png',
             'favicon.svg',
             'icon.svg',
             'apple-touch-icon.png',
@@ -37,25 +45,25 @@ export default defineConfig(({ mode }) => {
             theme_color: '#2563EB',
             icons: [
               {
-                src: '/pwa-192x192.png',
+                src: '/icon-192-v2.png',
                 sizes: '192x192',
                 type: 'image/png',
                 purpose: 'any'
               },
               {
-                src: '/pwa-512x512.png',
+                src: '/icon-512-v2.png',
                 sizes: '512x512',
                 type: 'image/png',
                 purpose: 'any'
               },
               {
-                src: '/pwa-maskable-512x512.png',
+                src: '/icon-maskable-512-v2.png',
                 sizes: '512x512',
                 type: 'image/png',
                 purpose: 'maskable'
               },
               {
-                src: '/icon.svg',
+                src: '/icon-v2.svg',
                 sizes: 'any',
                 type: 'image/svg+xml',
                 purpose: 'any'
