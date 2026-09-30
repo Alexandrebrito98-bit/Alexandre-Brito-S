@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { FilterStatus } from '../types';
+import { AppLogo } from './AppLogo';
 
 interface HeaderProps {
   itemCount: number;
@@ -33,8 +34,9 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="bg-white px-6 pt-6 pb-4 border-b border-gray-100 flex flex-col gap-4">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            Minha Lista
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
+            <AppLogo className="w-8 h-8 rounded-xl shadow-sm shadow-blue-500/15 shrink-0" />
+            <span>Minha Lista</span>
           </h1>
           <p className="text-gray-400 text-sm">
             {isViewMode ? 'Modo Visualização' : 'Controle rápido'}

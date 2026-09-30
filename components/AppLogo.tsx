@@ -1,0 +1,56 @@
+import React from 'react';
+
+interface AppLogoProps {
+  className?: string;
+  size?: number;
+}
+
+export const AppLogo: React.FC<AppLogoProps> = ({ className = 'w-8 h-8', size = 32 }) => {
+  return (
+    <svg 
+      viewBox="0 0 32 32" 
+      width={size} 
+      height={size} 
+      className={className} 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Ícone Supermercado e Lista de Compras"
+    >
+      {/* Fundo Squircle com gradiente azul padrão do app */}
+      <rect width="32" height="32" rx="8" fill="url(#superlist-app-logo-gradient)" />
+      <defs>
+        <linearGradient id="superlist-app-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#38BDF8" />
+          <stop offset="100%" stopColor="#3B82F6" />
+        </linearGradient>
+      </defs>
+
+      {/* Estrutura do Carrinho de Supermercado */}
+      <path 
+        d="M5.5 9.5H8L10.2 19C10.4 19.6 11 20 11.6 20H20.6C21.2 20 21.8 19.6 22 19L23.5 12.2C23.7 11.6 23.2 11 22.5 11H9.2" 
+        stroke="white" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+
+      {/* Rodas do Carrinho */}
+      <circle cx="12" cy="23.5" r="1.6" fill="white" />
+      <circle cx="19.5" cy="23.5" r="1.6" fill="white" />
+
+      {/* Linhas da Lista de Compras Organizada */}
+      <line x1="12" y1="14" x2="16.5" y2="14" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.9" />
+      <line x1="12.5" y1="17" x2="17" y2="17" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.75" />
+
+      {/* Símbolo de Check de Verificação Integrado */}
+      <path 
+        d="M15.5 9.5L18.5 12.5L24 5.5" 
+        stroke="white" 
+        strokeWidth="2.5" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+    </svg>
+  );
+};
