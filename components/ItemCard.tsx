@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShoppingItem, AppSettings, SwipeAction } from '../types';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import { Store, Check, X, ChevronDown } from 'lucide-react';
+import { getTranslation } from '../i18n';
 
 interface ItemCardProps {
   item: ShoppingItem;
@@ -24,9 +25,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   isViewMode = false,
   onOpenSettingsMarkets
 }) => {
+  const currentLang = settings.language || 'pt';
+  const t = getTranslation(currentLang);
+  const locale = currentLang === 'en' ? 'en-US' : 'pt-BR';
   const currency = settings.currency;
   const [displayPrice, setDisplayPrice] = useState(
-    item.unitPrice === 0 ? '' : item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    item.unitPrice === 0 ? '' : item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   );
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showMarketPicker, setShowMarketPicker] = useState(false);
@@ -39,6 +43,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState(item.name);
   const [isLongPressing, setIsLongPressing] = useState(false);
+  const [isHoldingName, setIsHoldingName] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   const menuRef = useRef<HTMLDivElement>(null);
@@ -46,6 +51,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const editInputRef = useRef<HTMLInputElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const nameHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const nameTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const associatedMarket = settings.isOrganizeByMarketEnabled && settings.markets
     ? settings.markets.find(m => m.id === item.marketId)
@@ -59,6 +66,62 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     setIsLongPressing(false);
     touchStartPosRef.current = null;
   }, []);
+
+  const cancelNameHold = useCallback(() => {
+    if (nameHoldTimerRef.current) {
+      clearTimeout(nameHoldTimerRef.current);
+      nameHoldTimerRef.current = null;
+    }
+    setIsHoldingName(false);
+    nameTouchStartRef.current = null;
+  }, []);
+
+  const startEditing = useCallback(() => {
+    setEditNameValue(item.name);
+    setIsEditingName(true);
+    setIsMenuOpen(false);
+  }, [item.name]);
+
+  const handleNamePointerDown = (e: React.PointerEvent) => {
+    if (isViewMode || isEditingName) return;
+    // Impede que o swipe/drag ou menu do card interfira
+    e.stopPropagation();
+
+    cancelNameHold();
+    cancelLongPress();
+
+    nameTouchStartRef.current = { x: e.clientX, y: e.clientY };
+    setIsHoldingName(true);
+
+    nameHoldTimerRef.current = setTimeout(() => {
+      cancelNameHold();
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try {
+          navigator.vibrate(60);
+        } catch (_) {}
+      }
+      startEditing();
+    }, 1000);
+  };
+
+  const handleNamePointerMove = (e: React.PointerEvent) => {
+    if (!nameTouchStartRef.current) return;
+    const dx = e.clientX - nameTouchStartRef.current.x;
+    const dy = e.clientY - nameTouchStartRef.current.y;
+    // Se o usuário mover mais de 10px (rolagem da página ou gesto), cancela o hold
+    if (Math.hypot(dx, dy) > 10) {
+      cancelNameHold();
+    }
+  };
+
+  const handleNamePointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    cancelNameHold();
+  };
+
+  const handleNamePointerCancel = () => {
+    cancelNameHold();
+  };
 
   const applyMarket = useCallback((targetMarketId?: string, status: 'pending' | 'purchased' | 'unavailable' = marketPickerStatus) => {
     const updates: Partial<ShoppingItem> = {
@@ -83,17 +146,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isViewMode || isEditingName || showDeleteConfirm || showMarketPicker) return;
     
-    // Ignore clicks on buttons, inputs or action menu
+    // Ignore clicks on buttons, inputs, action menu or product name
     const target = e.target as HTMLElement;
     if (
       target.closest('button') || 
       target.closest('input') || 
-      target.closest('[data-action-menu="true"]')
+      target.closest('[data-action-menu="true"]') ||
+      target.closest('[data-item-name="true"]')
     ) {
       return;
     }
 
     cancelLongPress();
+    cancelNameHold();
     touchStartPosRef.current = { x: e.clientX, y: e.clientY };
     setIsLongPressing(true);
 
@@ -130,6 +195,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
       }
+      if (nameHoldTimerRef.current) {
+        clearTimeout(nameHoldTimerRef.current);
+      }
     };
   }, []);
 
@@ -164,14 +232,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
 
   useEffect(() => {
-    const formatted = item.unitPrice === 0 ? '' : item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatted = item.unitPrice === 0 ? '' : item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const currentNumeric = parseFloat(displayPrice.replace(',', '.'));
     const isSameValue = isNaN(currentNumeric) ? item.unitPrice === 0 : currentNumeric === item.unitPrice;
     
     if (!isSameValue) {
       setDisplayPrice(formatted);
     }
-  }, [item.unitPrice]);
+  }, [item.unitPrice, locale]);
 
   const handlePriceChange = (val: string) => {
     const cleanVal = val.replace(/[^0-9.,]/g, '');
@@ -189,12 +257,6 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     setIsMenuOpen(false);
   };
 
-  const startEditing = () => {
-    setEditNameValue(item.name);
-    setIsEditingName(true);
-    setIsMenuOpen(false);
-  };
-
   const saveName = () => {
     const trimmed = editNameValue.trim();
     if (trimmed && trimmed !== item.name) {
@@ -205,7 +267,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   const handlePriceBlur = () => {
     if (item.unitPrice !== 0) {
-      setDisplayPrice(item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      setDisplayPrice(item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     } else {
       setDisplayPrice('');
     }
@@ -264,10 +326,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   };
 
   const getSwipeLabel = (action: SwipeAction) => {
-    if (action === 'purchase') return 'Comprado';
-    if (action === 'unavailable') return 'Indisponível';
+    if (action === 'purchase') return t.swipeBuy;
+    if (action === 'unavailable') return t.swipeUnavailable;
     if (action === 'market') return 'Mercado';
-    if (action === 'delete') return 'Excluir';
+    if (action === 'delete') return t.swipeDelete;
     return '';
   };
 
@@ -307,15 +369,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter shrink-0 ${
               !item.isAvailable ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
             }`}>
-              {item.quantity} un
+              {item.quantity} {t.unitShort}
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-1">
             {item.isPurchased && item.isAvailable && (
-              <span className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase">Comprado</span>
+              <span className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase">{t.purchasedBadge}</span>
             )}
             {!item.isAvailable && (
-              <span className="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase">Indisponível</span>
+              <span className="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase">{t.unavailableBadge}</span>
             )}
             {associatedMarket && (
               <span className="text-[8px] text-gray-500 font-bold bg-gray-100 px-1.5 py-0.5 rounded-md tracking-tight">
@@ -327,10 +389,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
         <div className="flex flex-col items-end shrink-0">
           <span className={`font-bold text-gray-700 ${textSizeClass} ${!item.isAvailable ? 'text-gray-400' : ''}`}>
-            {currency} {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currency} {item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <span className="text-[9px] text-gray-400 font-medium">
-            Sub: {currency} {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {t.subtotal} {currency} {subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
@@ -402,7 +464,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
                 isMenuOpen ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
               }`}
-              aria-label="Opções do item"
+              aria-label={t.itemOptions}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -429,7 +491,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             >
               <button 
                 onClick={() => handleAction(() => onUpdate({ isPurchased: !item.isPurchased }))}
-                title={item.isPurchased ? "Marcar como a comprar" : "Marcar como comprado"}
+                title={item.isPurchased ? t.markToBuy : t.markPurchased}
                 className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
                   item.isPurchased && item.isAvailable ? 'bg-green-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
                 }`}
@@ -440,7 +502,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               </button>
               <button 
                 onClick={startEditing}
-                title="Editar nome"
+                title={t.editName}
                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-gray-400 hover:bg-blue-50 hover:text-blue-600 active:bg-blue-50 active:text-blue-600 transition-all active:scale-90"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -449,7 +511,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               </button>
               <button 
                 onClick={() => handleAction(() => onUpdate({ isAvailable: !item.isAvailable }))}
-                title={!item.isAvailable ? "Marcar como disponível" : "Marcar como indisponível"}
+                title={!item.isAvailable ? t.markAvailable : t.markUnavailable}
                 className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
                   !item.isAvailable ? 'bg-yellow-400 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
                 }`}
@@ -478,7 +540,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   setIsMenuOpen(false);
                   setShowDeleteConfirm(true);
                 }}
-                title="Excluir item"
+                title={t.deleteItem}
                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all active:scale-90"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -520,19 +582,39 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   className={`w-full bg-blue-50 border border-blue-200 rounded-md px-1 py-0.5 font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-400 ${textSizeClass}`}
                 />
               ) : (
-                <span 
-                  onClick={startEditing}
-                  className={`font-bold text-gray-800 truncate cursor-text ${textSizeClass} ${!item.isAvailable ? 'line-through text-gray-400' : ''}`}
+                <div 
+                  data-item-name="true"
+                  onPointerDown={handleNamePointerDown}
+                  onPointerMove={handleNamePointerMove}
+                  onPointerUp={handleNamePointerUp}
+                  onPointerCancel={handleNamePointerCancel}
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{ WebkitTouchCallout: 'none' }}
+                  className={`relative inline-flex flex-col max-w-full cursor-pointer select-none rounded-md px-1 -mx-1 py-0.5 transition-all ${
+                    isHoldingName ? 'bg-blue-50/90 scale-[0.98]' : 'active:bg-gray-50/60'
+                  }`}
+                  title={t.holdToEditTitle}
                 >
-                  {item.name}
-                </span>
+                  <span 
+                    className={`font-bold text-gray-800 truncate ${textSizeClass} ${!item.isAvailable ? 'line-through text-gray-400' : ''}`}
+                  >
+                    {item.name}
+                  </span>
+
+                  {/* Indicador visual de progresso animado de 1 segundo ao segurar */}
+                  {isHoldingName && (
+                    <div className="absolute -bottom-0.5 left-1 right-1 h-0.5 bg-blue-200 rounded-full overflow-hidden pointer-events-none">
+                      <div className="h-full bg-blue-600 rounded-full animate-long-press" />
+                    </div>
+                  )}
+                </div>
               )}
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 {item.isPurchased && item.isAvailable && (
-                  <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight">Comprado</span>
+                  <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight">{t.purchasedBadge}</span>
                 )}
                 {!item.isAvailable && (
-                  <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight">Indisponível</span>
+                  <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight">{t.unavailableBadge}</span>
                 )}
                 {associatedMarket && (
                   <span className="text-[9px] text-gray-500 font-semibold bg-gray-100 px-1.5 py-0.5 rounded-md flex items-center gap-1 tracking-tight">
@@ -555,16 +637,16 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               value={displayPrice}
               onChange={(e) => handlePriceChange(e.target.value)}
               onBlur={handlePriceBlur}
-              placeholder="0,00"
+              placeholder={t.pricePlaceholder}
               className={`w-16 bg-transparent border-none text-right font-bold transition-colors focus:ring-0 p-0 outline-none ${
                 item.isPurchased && item.isAvailable ? 'text-green-600' : 'text-gray-900'
               } ${textSizeClass}`}
             />
           </div>
           <div className="text-[9px] text-gray-400 mt-0.5 flex items-center gap-1">
-            <span>Sub:</span>
+            <span>{t.subtotal}</span>
             <span className="font-bold">
-              {currency} {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {currency} {subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>
@@ -588,9 +670,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
-            <h3 className="font-bold text-gray-900 text-base mb-1">Excluir item?</h3>
+            <h3 className="font-bold text-gray-900 text-base mb-1">{t.deleteConfirmTitle}</h3>
             <p className="text-xs text-gray-500 mb-5 leading-relaxed">
-              Deseja remover <span className="font-semibold text-gray-800">"{item.name}"</span> da sua lista?
+              {t.deleteConfirmDesc(item.name)}
             </p>
             <div className="flex gap-2">
               <button
@@ -598,7 +680,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 onClick={() => setShowDeleteConfirm(false)}
                 className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
               >
-                Cancelar
+                {t.cancel}
               </button>
               <button
                 type="button"
@@ -608,7 +690,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 }}
                 className="flex-1 py-2.5 px-3 rounded-xl bg-red-600 text-white text-xs font-bold shadow-md shadow-red-200 hover:bg-red-700 active:scale-95 transition-all"
               >
-                Excluir
+                {t.deleteConfirmAction}
               </button>
             </div>
           </div>

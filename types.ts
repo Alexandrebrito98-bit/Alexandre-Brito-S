@@ -5,8 +5,11 @@ export enum SortMode {
   NameAZ = 'NameAZ',
   PriceAsc = 'PriceAsc',
   PriceDesc = 'PriceDesc',
-  Newest = 'Newest'
+  Newest = 'Newest',
+  Category = 'Category'
 }
+
+export type ViewSortOption = 'alphabetical' | 'value' | 'category' | 'last_modified';
 
 export type FilterStatus = 'all' | 'pending' | 'purchased' | 'unavailable';
 
@@ -36,7 +39,10 @@ export interface SavedList {
   items: ShoppingItem[];
 }
 
+export type Language = 'pt' | 'en';
+
 export interface AppSettings {
+  language?: Language;
   textSize: TextSize;
   sortMode: SortMode;
   isBudgetModeActive: boolean;
@@ -46,7 +52,7 @@ export interface AppSettings {
   rightSwipeAction: SwipeAction;
   leftSwipeAction: SwipeAction;
   savedHistory: SavedList[];
-  isOrganizeByMarketEnabled: boolean;
-  markets: Market[];
+  isOrganizeByMarketEnabled?: boolean;
+  markets?: Market[];
 }
 

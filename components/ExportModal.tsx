@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ArrowRight, Bookmark, Trash2 } from 'lucide-react';
+import { Language } from '../types';
+import { getTranslation } from '../i18n';
 
 interface ExportModalProps {
   onConfirm: (includePrice: boolean) => void;
   onSaveHistory: (clearAfterSave: boolean) => void;
   onClose: () => void;
+  lang?: Language;
 }
 
-export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHistory, onClose }) => {
+export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHistory, onClose, lang = 'pt' }) => {
   const [showSaveOptions, setShowSaveOptions] = useState(false);
+  const t = getTranslation(lang);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
@@ -22,16 +26,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
               <button 
                 onClick={() => setShowSaveOptions(false)}
                 className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 active:scale-90 transition-transform"
-                title="Voltar"
-                aria-label="Voltar"
+                title={t.back}
+                aria-label={t.back}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <h2 className="text-xl font-bold text-gray-900 text-center flex-1 pr-8">Salvar no Histórico</h2>
+              <h2 className="text-xl font-bold text-gray-900 text-center flex-1 pr-8">{t.saveOptionsTitle}</h2>
             </div>
             
             <p className="text-gray-500 text-sm mb-6 text-center leading-relaxed">
-              Como deseja proceder com a lista atual após salvar no histórico?
+              {t.saveOptionsSubtitle}
             </p>
 
             <div className="space-y-3">
@@ -44,8 +48,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                     <Trash2 className="w-5 h-5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <div className="font-bold text-sm">Salvar e Limpar Lista</div>
-                    <div className="text-[11px] text-green-100 font-medium truncate">Salva e esvazia os produtos da lista</div>
+                    <div className="font-bold text-sm">{t.saveAndClear}</div>
+                    <div className="text-[11px] text-green-100 font-medium truncate">{t.saveAndClearDesc}</div>
                   </div>
                 </div>
                 <ArrowRight className="w-5 h-5 shrink-0 opacity-80 ml-2" />
@@ -60,8 +64,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                     <Bookmark className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="font-bold text-sm">Somente Salvar</div>
-                    <div className="text-[11px] text-gray-500 font-medium truncate">Mantém todos os produtos na lista</div>
+                    <div className="font-bold text-sm">{t.onlySave}</div>
+                    <div className="text-[11px] text-gray-500 font-medium truncate">{t.onlySaveDesc}</div>
                   </div>
                 </div>
                 <ArrowRight className="w-5 h-5 shrink-0 opacity-60 text-gray-400 ml-2" />
@@ -71,15 +75,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                 onClick={() => setShowSaveOptions(false)}
                 className="w-full py-3 text-gray-400 hover:text-gray-600 font-bold text-sm transition-colors mt-1"
               >
-                Voltar
+                {t.back}
               </button>
             </div>
           </div>
         ) : (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">Exportar Lista</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">{t.exportModalTitle}</h2>
             <p className="text-gray-500 text-sm mb-8 text-center leading-relaxed">
-              Como você deseja baixar o arquivo PDF ou salvar no histórico?
+              {t.exportModalSubtitle}
             </p>
             
             <div className="space-y-3">
@@ -91,7 +95,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>Baixar com preços</span>
+                  <span>{t.downloadWithPrices}</span>
                 </div>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -106,7 +110,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>Apenas produtos</span>
+                  <span>{t.downloadOnlyProducts}</span>
                 </div>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -123,7 +127,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                   </svg>
-                  <span>Salvar no Histórico</span>
+                  <span>{t.saveToHistory}</span>
                 </div>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -134,7 +138,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                 onClick={onClose}
                 className="w-full py-4 text-gray-400 font-bold text-sm"
               >
-                Cancelar
+                {t.cancel}
               </button>
             </div>
           </div>

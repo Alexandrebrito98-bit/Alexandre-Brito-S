@@ -1,21 +1,24 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ShoppingItem, SortMode, AppSettings, FilterStatus, SavedList } from './types';
+import { ShoppingItem, SortMode, AppSettings, FilterStatus, SavedList, ViewSortOption } from './types';
 import { Header } from './components/Header';
 import { ItemCard } from './components/ItemCard';
 import { SettingsModal } from './components/SettingsModal';
 import { ExportModal } from './components/ExportModal';
-import { ChevronUp, Check } from 'lucide-react';
+import { ChevronUp, Check, SlidersHorizontal, ArrowUpDown, DollarSign, Shapes, Clock } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useKeyboardAvoidance } from './hooks/useKeyboardAvoidance';
+import { getTranslation } from './i18n';
+import { detectCategory, getCategoryDisplayName, CategoryDefinition } from './utils/categoryDetector';
 
 const STORAGE_KEY = 'superlist_data';
 const SETTINGS_KEY = 'superlist_settings';
+const VIEW_SORT_KEY = 'superlist_view_sort_mode';
 
 const App: React.FC = () => {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
+    language: 'pt',
     textSize: 'small',
     sortMode: SortMode.NameAZ,
     isBudgetModeActive: false,
@@ -25,12 +28,13 @@ const App: React.FC = () => {
     rightSwipeAction: 'purchase',
     leftSwipeAction: 'unavailable',
     savedHistory: [],
-    isOrganizeByMarketEnabled: false,
-    markets: [],
   });
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
-  const [settingsInitialSection, setSettingsInitialSection] = useState<'general' | 'markets'>('general');
   const [isViewMode, setIsViewMode] = useState(false);
+  const [viewSortOption, setViewSortOption] = useState<ViewSortOption>('alphabetical');
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+
   const [newItemName, setNewItemName] = useState('');
   const [newItemQty, setNewItemQty] = useState<string>(''); 
   const [newItemPrice, setNewItemPrice] = useState<string>(''); 
@@ -43,7 +47,6 @@ const App: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-
   
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -54,6 +57,29 @@ const App: React.FC = () => {
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { isKeyboardActive, keyboardSpacerHeight } = useKeyboardAvoidance();
+
+  const currentLang = settings.language || 'pt';
+  const t = getTranslation(currentLang);
+  const locale = currentLang === 'en' ? 'en-US' : 'pt-BR';
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = currentLang === 'en' ? 'en' : 'pt-BR';
+    }
+  }, [currentLang]);
+
+  // Close sort menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(event.target as Node)) {
+        setIsSortMenuOpen(false);
+      }
+    };
+    if (isSortMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSortMenuOpen]);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimerRef.current) {
@@ -108,23 +134,28 @@ const App: React.FC = () => {
 
     if (clearAfterSave) {
       setItems([]);
-      showToast('Lista salva e limpa com sucesso.');
+      showToast(t.listSavedAndCleared);
     } else {
-      showToast('Lista salva no histórico.');
+      showToast(t.listSavedToHistory);
     }
 
     setShowExportModal(false);
-  }, [items, totalValue, showToast]);
+  }, [items, totalValue, showToast, t]);
 
   useEffect(() => {
     const savedItems = localStorage.getItem(STORAGE_KEY);
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
+    const savedViewSort = localStorage.getItem(VIEW_SORT_KEY);
     if (savedItems) setItems(JSON.parse(savedItems) as ShoppingItem[]);
     if (savedSettings) setSettings(prev => ({ ...prev, ...(JSON.parse(savedSettings) as Partial<AppSettings>) }));
+    if (savedViewSort && ['alphabetical', 'value', 'category', 'last_modified'].includes(savedViewSort)) {
+      setViewSortOption(savedViewSort as ViewSortOption);
+    }
   }, []);
 
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }, [items]);
   useEffect(() => { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }, [settings]);
+  useEffect(() => { localStorage.setItem(VIEW_SORT_KEY, viewSortOption); }, [viewSortOption]);
 
   const handleDeleteItem = useCallback((itemToDelete: ShoppingItem) => {
     if (undoTimerRef.current) {
@@ -158,102 +189,128 @@ const App: React.FC = () => {
       return next;
     });
 
-    setFeedback(`"${deletedItemInfo.item.name}" restaurado`);
-    setTimeout(() => setFeedback(null), 2000);
+    showToast(t.itemRestored(deletedItemInfo.item.name));
     setDeletedItemInfo(null);
-  }, [deletedItemInfo]);
+  }, [deletedItemInfo, showToast, t]);
 
-  const handlePurchasedButtonClick = useCallback(() => {
-    const name = newItemName.trim();
-    if (name) {
-      const existingIndex = items.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
-      if (existingIndex !== -1) {
-        // Exceção solicitada: se o item já existe e o usuário toca no botão de comprado (🛒),
-        // atualiza o item existente para comprado em vez de duplicar.
-        const existing = items[existingIndex];
-        const price = parseFloat(newItemPrice.replace(',', '.'));
-        const qty = parseInt(newItemQty);
+  // Função para o botão de Comprado (ícone de carrinho)
+  const handlePurchasedButtonClick = () => {
+    const rawName = newItemName.trim();
+    
+    // Se o usuário informou o nome do produto
+    if (rawName) {
+      const parsedQty = parseInt(newItemQty, 10);
+      const validQty = !isNaN(parsedQty) && parsedQty > 0 ? parsedQty : 1;
+      const parsedPrice = parseFloat(newItemPrice.replace(',', '.'));
+      const validPrice = !isNaN(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0;
 
-        const updatedItem: ShoppingItem = {
-          ...existing,
-          isPurchased: true,
-          isAvailable: true,
-          ...(qty && qty > 0 ? { quantity: qty } : {}),
-          ...(!isNaN(price) && price > 0 ? { unitPrice: price } : {})
-        };
+      const existing = items.find(i => i.name.toLowerCase() === rawName.toLowerCase());
 
-        setItems(prev => {
-          const next = [...prev];
-          next[existingIndex] = updatedItem;
-          return next;
-        });
+      if (existing) {
+        // Atualiza o item existente com os dados informados, sem duplicar
+        setItems(prev => prev.map(item => 
+          item.id === existing.id 
+            ? { 
+                ...item, 
+                quantity: validQty,
+                unitPrice: validPrice > 0 ? validPrice : item.unitPrice,
+                isPurchased: true, 
+                isAvailable: true,
+                addedAt: Date.now()
+              } 
+            : item
+        ));
 
         setNewItemName('');
         setNewItemQty('');
         setNewItemPrice('');
         setIsNewItemPurchased(false);
         setIsNewItemUnavailable(false);
+        setFeedback(t.itemMarkedPurchased(existing.name));
+        setTimeout(() => setFeedback(null), 2000);
+        inputRef.current?.focus();
+        return;
+      } else {
+        // Não existe na lista: adiciona normalmente já como comprado
+        const newItem: ShoppingItem = {
+          id: crypto.randomUUID(),
+          name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
+          quantity: validQty,
+          unitPrice: validPrice,
+          isAvailable: true,
+          isPurchased: true,
+          addedAt: Date.now()
+        };
+        setItems(prev => [newItem, ...prev]);
 
-        setFeedback(`"${existing.name}" marcado como comprado`);
+        setNewItemName('');
+        setNewItemQty('');
+        setNewItemPrice('');
+        setIsNewItemPurchased(false);
+        setIsNewItemUnavailable(false);
+        setFeedback(t.itemMarkedPurchased(newItem.name));
         setTimeout(() => setFeedback(null), 2000);
         inputRef.current?.focus();
         return;
       }
     }
 
-    setIsNewItemPurchased(prev => !prev);
-    setIsNewItemUnavailable(false);
-  }, [newItemName, newItemPrice, newItemQty, items]);
+    // Se o campo de nome estiver vazio, alterna o estado do botão
+    setIsNewItemPurchased(!isNewItemPurchased);
+    if (!isNewItemPurchased) {
+      setIsNewItemUnavailable(false);
+    }
+  };
 
   const addItem = useCallback(() => {
     const name = newItemName.trim();
     if (!name) return;
+
+    const parsedQty = parseInt(newItemQty, 10);
+    const validQty = !isNaN(parsedQty) && parsedQty > 0 ? parsedQty : 1;
+    const price = parseFloat(newItemPrice.replace(',', '.'));
+    const validPrice = !isNaN(price) && price >= 0 ? price : 0;
+
+    // Verificar se já existe (case-insensitive)
+    const existing = items.find(i => i.name.toLowerCase() === name.toLowerCase());
     
-    const existingIndex = items.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
-    if (existingIndex !== -1) {
+    if (existing) {
       if (isNewItemPurchased) {
-        const existing = items[existingIndex];
-        const price = parseFloat(newItemPrice.replace(',', '.'));
-        const qty = parseInt(newItemQty);
-
-        const updatedItem: ShoppingItem = {
-          ...existing,
-          isPurchased: true,
-          isAvailable: true,
-          ...(qty && qty > 0 ? { quantity: qty } : {}),
-          ...(!isNaN(price) && price > 0 ? { unitPrice: price } : {})
-        };
-
-        setItems(prev => {
-          const next = [...prev];
-          next[existingIndex] = updatedItem;
-          return next;
-        });
-
+        setItems(prev => prev.map(item => 
+          item.id === existing.id 
+            ? { 
+                ...item, 
+                quantity: validQty,
+                unitPrice: validPrice > 0 ? validPrice : item.unitPrice,
+                isPurchased: true, 
+                isAvailable: true,
+                addedAt: Date.now()
+              } 
+            : item
+        ));
+        
         setNewItemName('');
         setNewItemQty('');
         setNewItemPrice('');
         setIsNewItemPurchased(false);
         setIsNewItemUnavailable(false);
 
-        setFeedback(`"${existing.name}" marcado como comprado`);
+        setFeedback(t.itemMarkedPurchased(existing.name));
         setTimeout(() => setFeedback(null), 2000);
         inputRef.current?.focus();
         return;
       }
 
-      setFeedback('Item já na lista');
+      setFeedback(t.itemAlreadyInList);
       setTimeout(() => setFeedback(null), 2000);
       return;
     }
 
-    const price = parseFloat(newItemPrice.replace(',', '.'));
-
     const newItem: ShoppingItem = {
       id: crypto.randomUUID(),
       name: name.charAt(0).toUpperCase() + name.slice(1),
-      quantity: parseInt(newItemQty) || 1,
-      unitPrice: isNaN(price) ? 0 : price,
+      quantity: validQty,
+      unitPrice: validPrice,
       isAvailable: !isNewItemUnavailable,
       isPurchased: isNewItemPurchased,
       addedAt: Date.now()
@@ -268,49 +325,48 @@ const App: React.FC = () => {
     setIsNewItemUnavailable(false);
     
     inputRef.current?.focus();
-  }, [newItemName, newItemQty, newItemPrice, items, isNewItemPurchased, isNewItemUnavailable]);
+  }, [newItemName, newItemQty, newItemPrice, items, isNewItemPurchased, isNewItemUnavailable, t]);
 
   const handleExport = useCallback((includePrice: boolean) => {
-    if (items.length === 0) return;
-
     const doc = new jsPDF();
-    const dateStr = new Date().toLocaleDateString('pt-BR');
     const currency = settings.currency;
-
-    // Título
-    doc.setFontSize(18);
-    doc.text('SuperList - Lista de Compras', 14, 22);
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(`Data: ${dateStr}`, 14, 30);
-
-    const sortAlpha = (a: ShoppingItem, b: ShoppingItem) => a.name.localeCompare(b.name);
     
-    const available = items.filter(i => i.isAvailable && !i.isPurchased).sort(sortAlpha);
-    const purchased = items.filter(i => i.isAvailable && i.isPurchased).sort(sortAlpha);
-    const unavailable = items.filter(i => !i.isAvailable).sort(sortAlpha);
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(37, 99, 235); // Blue-600
+    doc.text(t.pdfTitle, 14, 20);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139); // Slate-500
+    doc.text(`${t.pdfDate} ${new Date().toLocaleDateString(locale)}`, 14, 28);
 
-    let currentY = 40;
+    // Grouping
+    const available = items.filter(i => i.isAvailable && !i.isPurchased);
+    const purchased = items.filter(i => i.isAvailable && i.isPurchased);
+    const unavailable = items.filter(i => !i.isAvailable);
 
-    const addSection = (title: string, data: ShoppingItem[]) => {
-      if (data.length === 0) return;
+    let currentY = 35;
 
-      doc.setFontSize(14);
-      doc.setTextColor(0);
+    const addSection = (title: string, list: ShoppingItem[]) => {
+      if (list.length === 0) return;
+
+      doc.setFontSize(12);
+      doc.setTextColor(30, 41, 59); // Slate-800
+      doc.setFont('helvetica', 'bold');
       doc.text(title, 14, currentY);
-      currentY += 5;
+      currentY += 4;
 
-      const columns = ['Qtd', 'Produto'];
+      const columns = [t.pdfQty, t.pdfProduct];
       if (includePrice) {
-        columns.push('Preço Un.', 'Total');
+        columns.push(t.pdfUnitPrice, t.pdfTotal);
       }
 
-      const rows = data.map(i => {
-        const row = [i.quantity.toString(), i.name];
+      const rows = list.map(i => {
+        const row = [`${i.quantity} ${t.unitShort}`, i.name];
         if (includePrice) {
           row.push(
-            `${currency} ${i.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-            `${currency} ${(i.unitPrice * i.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+            `${currency} ${i.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2 })}`,
+            `${currency} ${(i.unitPrice * i.quantity).toLocaleString(locale, { minimumFractionDigits: 2 })}`
           );
         }
         return row;
@@ -333,35 +389,53 @@ const App: React.FC = () => {
       currentY = finalY + 15;
     };
 
-    addSection('PARA COMPRAR', available);
-    addSection('NO CARRINHO', purchased);
-    addSection('INDISPONÍVEIS', unavailable);
+    addSection(t.pdfToBuy, available);
+    addSection(t.pdfInCart, purchased);
+    addSection(t.pdfUnavailable, unavailable);
 
     if (includePrice) {
       const total = items.filter(i => i.isAvailable).reduce((acc, curr) => acc + (curr.unitPrice * curr.quantity), 0);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text(`VALOR TOTAL ESTIMADO: ${currency} ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, currentY);
+      doc.text(`${t.pdfEstimatedTotal} ${currency} ${total.toLocaleString(locale, { minimumFractionDigits: 2 })}`, 14, currentY);
     }
 
     doc.save(`SuperList_${new Date().toISOString().split('T')[0]}.pdf`);
     setShowExportModal(false);
-  }, [items, settings.currency]);
+  }, [items, settings.currency, locale, t]);
 
-  const sections = useMemo<Record<string, ShoppingItem[]>>(() => {
+  // Modo de exibição e ordenação (tanto na tela principal Minha Lista quanto no Modo Visualização)
+  interface ViewCategoryGroup {
+    category: CategoryDefinition;
+    items: ShoppingItem[];
+    subtotal: number;
+  }
+
+  // Função unificada de ordenação baseada na opção selecionada (viewSortOption)
+  const getItemSortFn = (option: ViewSortOption) => (a: ShoppingItem, b: ShoppingItem) => {
+    if (option === 'alphabetical') {
+      return a.name.localeCompare(b.name);
+    }
+    if (option === 'value') {
+      const valA = a.unitPrice * a.quantity;
+      const valB = b.unitPrice * b.quantity;
+      return valB - valA;
+    }
+    if (option === 'last_modified') {
+      return b.addedAt - a.addedAt;
+    }
+    return a.name.localeCompare(b.name);
+  };
+
+  // Seções no modo padrão (divididas por Para Comprar, No Carrinho, Indisponíveis ou Categorias se viewSortOption === 'category')
+  const defaultSections = useMemo<Record<string, ShoppingItem[]>>(() => {
     let baseFiltered = items.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (filterStatus === 'pending') baseFiltered = baseFiltered.filter(i => i.isAvailable && !i.isPurchased);
     if (filterStatus === 'purchased') baseFiltered = baseFiltered.filter(i => i.isAvailable && i.isPurchased);
     if (filterStatus === 'unavailable') baseFiltered = baseFiltered.filter(i => !i.isAvailable);
 
-    const sortFn = (a: ShoppingItem, b: ShoppingItem) => {
-      if (settings.sortMode === SortMode.NameAZ) return a.name.localeCompare(b.name);
-      if (settings.sortMode === SortMode.Newest) return b.addedAt - a.addedAt;
-      const valA = a.unitPrice * a.quantity;
-      const valB = b.unitPrice * b.quantity;
-      return settings.sortMode === SortMode.PriceAsc ? valA - valB : valB - valA;
-    };
+    const sortFn = getItemSortFn(viewSortOption);
 
     const grouped = {
       available: baseFiltered.filter(i => i.isAvailable && !i.isPurchased).sort(sortFn),
@@ -370,7 +444,56 @@ const App: React.FC = () => {
     };
 
     return grouped;
-  }, [items, searchTerm, settings.sortMode, filterStatus]);
+  }, [items, searchTerm, viewSortOption, filterStatus]);
+
+  const viewModeData = useMemo(() => {
+    let baseFiltered = items.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    if (filterStatus === 'pending') baseFiltered = baseFiltered.filter(i => i.isAvailable && !i.isPurchased);
+    if (filterStatus === 'purchased') baseFiltered = baseFiltered.filter(i => i.isAvailable && i.isPurchased);
+    if (filterStatus === 'unavailable') baseFiltered = baseFiltered.filter(i => !i.isAvailable);
+
+    if (viewSortOption === 'category') {
+      // Agrupamento automático por categorias
+      const groupsMap = new Map<string, { category: CategoryDefinition; items: ShoppingItem[] }>();
+
+      baseFiltered.forEach(item => {
+        const cat = detectCategory(item.name);
+        if (!groupsMap.has(cat.id)) {
+          groupsMap.set(cat.id, { category: cat, items: [] });
+        }
+        groupsMap.get(cat.id)!.items.push(item);
+      });
+
+      // Ordena os itens dentro de cada categoria por nome
+      const categoryGroups: ViewCategoryGroup[] = [];
+      groupsMap.forEach(group => {
+        group.items.sort((a, b) => a.name.localeCompare(b.name));
+        const subtotal = group.items.reduce((sum, i) => sum + (i.unitPrice * i.quantity), 0);
+        categoryGroups.push({
+          category: group.category,
+          items: group.items,
+          subtotal
+        });
+      });
+
+      // Ordenar categorias colocando 'other' no final e o restante alfabeticamente
+      categoryGroups.sort((a, b) => {
+        if (a.category.id === 'other') return 1;
+        if (b.category.id === 'other') return -1;
+        const nameA = getCategoryDisplayName(a.category, currentLang);
+        const nameB = getCategoryDisplayName(b.category, currentLang);
+        return nameA.localeCompare(nameB);
+      });
+
+      return { isCategoryMode: true as const, categoryGroups };
+    }
+
+    // Ordenação tradicional da lista (Alfabético, Valor ou Última Modificação)
+    const sorted = [...baseFiltered].sort(getItemSortFn(viewSortOption));
+
+    return { isCategoryMode: false as const, items: sorted };
+  }, [items, searchTerm, filterStatus, viewSortOption, currentLang]);
 
   const budgetExceeded = settings.isBudgetModeActive && totalValue > settings.budgetLimit;
 
@@ -381,6 +504,13 @@ const App: React.FC = () => {
     setShowClearConfirm(false);
   };
 
+  const sortOptionsConfig = [
+    { id: 'alphabetical' as ViewSortOption, label: t.sortAlphabetical, icon: ArrowUpDown },
+    { id: 'value' as ViewSortOption, label: t.sortValue, icon: DollarSign },
+    { id: 'category' as ViewSortOption, label: t.sortCategory, icon: Shapes },
+    { id: 'last_modified' as ViewSortOption, label: t.sortLastModified, icon: Clock },
+  ];
+
   return (
     <div className={`min-h-screen flex flex-col pb-32 ${settings.textSize === 'small' ? 'text-sm' : settings.textSize === 'large' ? 'text-lg' : 'text-base'}`}>
       <Header 
@@ -388,16 +518,14 @@ const App: React.FC = () => {
         availableCount={items.filter(i => i.isAvailable && !i.isPurchased).length}
         purchasedCount={items.filter(i => i.isAvailable && i.isPurchased).length}
         unavailableCount={items.filter(i => !i.isAvailable).length}
-        onOpenSettings={() => {
-          setSettingsInitialSection('general');
-          setShowSettings(true);
-        }}
+        onOpenSettings={() => setShowSettings(true)}
         onClearList={() => setShowClearConfirm(true)}
         isViewMode={isViewMode}
         onToggleViewMode={() => setIsViewMode(!isViewMode)}
         onExport={() => setShowExportModal(true)}
         currentFilter={filterStatus}
         onFilterChange={setFilterStatus}
+        lang={currentLang}
       />
 
       <main className="flex-1 px-4 py-2 space-y-4 max-w-lg mx-auto w-full">
@@ -410,7 +538,7 @@ const App: React.FC = () => {
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addItem()}
-                placeholder="Produto"
+                placeholder={t.productPlaceholder}
                 className="w-full px-4 py-3 rounded-xl border-gray-200 border bg-white outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               />
               
@@ -418,7 +546,7 @@ const App: React.FC = () => {
                 {/* Container Qtd e Preço */}
                 <div className="flex flex-1 items-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden shadow-inner">
                   <div className="flex items-center flex-1 px-3">
-                    <span className="text-[10px] font-bold text-gray-400 mr-1 uppercase">Qtd</span>
+                    <span className="text-[10px] font-bold text-gray-400 mr-1 uppercase">{t.qtyLabel}</span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -440,17 +568,17 @@ const App: React.FC = () => {
                       onBlur={() => {
                         const price = parseFloat(newItemPrice.replace(',', '.'));
                         if (!isNaN(price) && price !== 0) {
-                          setNewItemPrice(price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                          setNewItemPrice(price.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
                         }
                       }}
                       onKeyDown={(e) => e.key === 'Enter' && addItem()}
-                      placeholder="0,00"
+                      placeholder={t.pricePlaceholder}
                       className="w-full bg-transparent py-3 text-sm font-bold outline-none text-gray-700"
                     />
                   </div>
                 </div>
 
-                {/* Botões de Status Rápido movidos para cá */}
+                {/* Botões de Status Rápido */}
                 <div className="flex gap-2 shrink-0">
                   <button 
                     onClick={handlePurchasedButtonClick}
@@ -459,8 +587,8 @@ const App: React.FC = () => {
                       ? 'bg-green-600 text-white border-green-600 shadow-md shadow-green-100' 
                       : 'bg-white text-gray-400 border-gray-200'
                     }`}
-                    aria-label="Adicionar ou marcar como comprado"
-                    title={newItemName.trim() ? "Marcar item existente como comprado" : "Adicionar como comprado"}
+                    aria-label={newItemName.trim() ? t.markExistingAsPurchased : t.addAsPurchased}
+                    title={newItemName.trim() ? t.markExistingAsPurchased : t.addAsPurchased}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -470,7 +598,8 @@ const App: React.FC = () => {
                   <button 
                     onClick={addItem}
                     className="w-12 h-12 flex items-center justify-center rounded-xl bg-blue-600 text-white border border-blue-600 shadow-md shadow-blue-100 transition-all active:scale-90"
-                    aria-label="Adicionar item"
+                    aria-label={t.addItem}
+                    title={t.addItem}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -484,52 +613,195 @@ const App: React.FC = () => {
         )}
 
         <div className="space-y-4">
-          <div className="relative">
-            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar na lista..." className="w-full bg-gray-100/50 rounded-xl py-2 pl-10 pr-4 text-xs outline-none" />
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          {/* Barra de Busca com Filtro de Ordenação (no modo Visualização) */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <input 
+                type="text" 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+                placeholder={t.searchPlaceholder} 
+                className="w-full bg-gray-100/50 rounded-xl py-2 pl-10 pr-4 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all" 
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+
+            {/* Ícone de filtro/ordenação visível tanto na tela principal (Minha Lista) quanto no Modo Visualização */}
+            <div className="relative shrink-0" ref={sortMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+                className={`h-9 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all active:scale-95 text-xs font-bold ${
+                  isSortMenuOpen
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
+                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm'
+                }`}
+                aria-label={t.sortButtonTitle}
+                title={t.sortButtonTitle}
+              >
+                <SlidersHorizontal className="w-4 h-4" strokeWidth={2.5} />
+                <span className="hidden sm:inline text-[11px] font-bold">
+                  {sortOptionsConfig.find(o => o.id === viewSortOption)?.label}
+                </span>
+              </button>
+
+                {/* Dropdown Menu compacto e sem scroll horizontal */}
+                {isSortMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-3 py-1.5 border-b border-gray-50 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        {t.sortByLabel}
+                      </span>
+                    </div>
+
+                    <div className="p-1 space-y-0.5">
+                      {sortOptionsConfig.map((opt) => {
+                        const Icon = opt.icon;
+                        const isSelected = viewSortOption === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setViewSortOption(opt.id);
+                              setIsSortMenuOpen(false);
+                            }}
+                            className={`w-full px-3 py-2 rounded-xl text-left text-xs font-bold flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                              <span className="truncate">{opt.label}</span>
+                            </div>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1.5" strokeWidth={3} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
           </div>
 
           <div className="bg-white rounded-[2rem] p-4 border border-gray-100 shadow-sm min-h-[100px]">
           {filterStatus !== 'all' && (
             <div className="px-2 pb-4 flex justify-between items-center animate-in fade-in slide-in-from-top-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase">Filtrando por: {filterStatus === 'pending' ? 'Disponíveis' : filterStatus === 'purchased' ? 'Comprados' : 'Indisponíveis'}</span>
-              <button onClick={() => setFilterStatus('all')} className="text-[10px] font-bold text-blue-600 uppercase">Limpar Filtro</button>
+              <span className="text-[10px] font-bold text-gray-400 uppercase">
+                {t.filteringBy} {filterStatus === 'pending' ? t.filterAvailable : filterStatus === 'purchased' ? t.filterPurchased : t.filterUnavailable}
+              </span>
+              <button onClick={() => setFilterStatus('all')} className="text-[10px] font-bold text-blue-600 uppercase">
+                {t.clearFilter}
+              </button>
             </div>
           )}
 
-          {(Object.entries(sections) as [string, ShoppingItem[]][]).map(([key, list]) => list && list.length > 0 && (
-            <div key={key} className="mb-6 last:mb-0">
-              <div className="flex items-center gap-2 px-1 pb-2 opacity-70">
-                <span className={`w-1.5 h-1.5 rounded-full ${key === 'available' ? 'bg-blue-500' : key === 'purchased' ? 'bg-green-500' : 'bg-yellow-400'}`}></span>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">{key === 'available' ? 'Para Comprar' : key === 'purchased' ? 'No Carrinho' : 'Indisponíveis'}</span>
-              </div>
-              {list.map(item => (
+          {/* Renderização da Lista (tanto no Modo Visualização quanto na tela principal da Minha Lista) */}
+          {viewSortOption === 'category' ? (
+            // Agrupado por Categoria (disponível tanto no Modo Visualização quanto na Minha Lista)
+            <>
+              {viewModeData.categoryGroups.map((group) => (
+                <div key={group.category.id} className="mb-6 last:mb-0">
+                  <div className="flex items-center justify-between px-1 pb-2 border-b border-gray-50 mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base shrink-0 leading-none" role="img" aria-hidden="true">
+                        {group.category.icon}
+                      </span>
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-800 truncate">
+                        {getCategoryDisplayName(group.category, currentLang)}
+                      </span>
+                      <span className="text-[10px] bg-gray-100 text-gray-500 font-bold px-1.5 py-0.5 rounded-full shrink-0">
+                        {group.items.length}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-400 shrink-0">
+                      {settings.currency} {group.subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {group.items.map(item => (
+                    <ItemCard 
+                      key={item.id} 
+                      item={item} 
+                      onUpdate={(u) => setItems(prev => prev.map(i => i.id === item.id ? { ...i, addedAt: Date.now(), ...u } : i))} 
+                      onDelete={() => handleDeleteItem(item)} 
+                      textSizeClass="" 
+                      titleSizeClass="" 
+                      settings={settings} 
+                      isViewMode={isViewMode}
+                    />
+                  ))}
+                </div>
+              ))}
+              {viewModeData.categoryGroups.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-gray-400 text-sm font-medium">{t.noItemsFound}</p>
+                </div>
+              )}
+            </>
+          ) : isViewMode ? (
+            // Modo Visualização com ordenação simples em lista contínua (Alfabético, Valor ou Última Modificação)
+            <>
+              {viewModeData.items.map(item => (
                 <ItemCard 
                   key={item.id} 
                   item={item} 
-                  onUpdate={(u) => setItems(prev => prev.map(i => i.id === item.id ? {...i, ...u} : i))} 
+                  onUpdate={(u) => setItems(prev => prev.map(i => i.id === item.id ? { ...i, addedAt: Date.now(), ...u } : i))} 
                   onDelete={() => handleDeleteItem(item)} 
                   textSizeClass="" 
                   titleSizeClass="" 
                   settings={settings} 
                   isViewMode={isViewMode}
-                  onOpenSettingsMarkets={() => {
-                    setSettingsInitialSection('markets');
-                    setShowSettings(true);
-                  }}
                 />
               ))}
-            </div>
-          ))}
-          {(Object.values(sections) as ShoppingItem[][]).every(l => l.length === 0) && (
-            <div className="py-12 text-center">
-               <p className="text-gray-400 text-sm font-medium">Nenhum item encontrado com este filtro.</p>
-            </div>
+              {viewModeData.items.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-gray-400 text-sm font-medium">{t.noItemsFound}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            // Modo de Edição normal na Minha Lista (seções Para Comprar, No Carrinho, Indisponíveis ordenadas pela opção selecionada)
+            <>
+              {(Object.entries(defaultSections) as [string, ShoppingItem[]][]).map(([key, list]) => list && list.length > 0 && (
+                <div key={key} className="mb-6 last:mb-0">
+                  <div className="flex items-center gap-2 px-1 pb-2 opacity-70">
+                    <span className={`w-1.5 h-1.5 rounded-full ${key === 'available' ? 'bg-blue-500' : key === 'purchased' ? 'bg-green-500' : 'bg-yellow-400'}`}></span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">
+                      {key === 'available' ? t.toBuy : key === 'purchased' ? t.inCart : t.unavailable}
+                    </span>
+                  </div>
+                  {list.map(item => (
+                    <ItemCard 
+                      key={item.id} 
+                      item={item} 
+                      onUpdate={(u) => setItems(prev => prev.map(i => i.id === item.id ? { ...i, addedAt: Date.now(), ...u } : i))} 
+                      onDelete={() => handleDeleteItem(item)} 
+                      textSizeClass="" 
+                      titleSizeClass="" 
+                      settings={settings} 
+                      isViewMode={isViewMode}
+                    />
+                  ))}
+                </div>
+              ))}
+              {(Object.values(defaultSections) as ShoppingItem[][]).every(l => l.length === 0) && (
+                <div className="py-12 text-center">
+                  <p className="text-gray-400 text-sm font-medium">{t.noItemsFound}</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Dynamic temporary spacer for keyboard avoidance (smoothly collapses to 0 when keyboard closes) */}
+      {/* Dynamic temporary spacer for keyboard avoidance */}
       <div 
         id="keyboard-avoidance-spacer"
         style={{ height: keyboardSpacerHeight }} 
@@ -554,7 +826,7 @@ const App: React.FC = () => {
                 </svg>
               </div>
               <span className="text-xs font-medium text-gray-200 truncate">
-                Item <span className="font-bold text-white">"{deletedItemInfo.item.name}"</span> excluído
+                {t.itemDeleted(deletedItemInfo.item.name)}
               </span>
             </div>
 
@@ -566,7 +838,7 @@ const App: React.FC = () => {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2m0 0l-4-4m4 4l4-4" />
               </svg>
-              Desfazer
+              {t.undo}
             </button>
           </div>
         </div>
@@ -586,25 +858,29 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <footer className={`fixed bottom-0 left-0 right-0 bg-white border-t p-6 flex flex-col items-center z-30 transition-all duration-300 ease-in-out ${
-        budgetExceeded ? 'bg-red-50 border-red-500 text-red-600' : ''
-      } ${
-        isKeyboardActive ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
-      }`}>
-        <div className="w-full flex justify-between items-center font-bold">
-          <span className="text-xs uppercase tracking-widest">Total Estimado</span>
-          <span className="text-xl">{settings.currency} {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+      {/* Footer Fixo com Total */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 px-6 py-4 flex justify-between items-center z-30 max-w-lg mx-auto">
+        <div>
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">
+            {t.estimatedTotal}
+          </span>
+          <span className="text-xl font-black text-gray-900">
+            {settings.currency} {totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
         </div>
+
         {settings.isBudgetModeActive && (
-          <div className="w-full mt-1">
-            <div className={`w-full flex justify-between items-center ${budgetExceeded ? 'opacity-75' : 'opacity-60'}`}>
-              <span className="text-[10px] uppercase tracking-widest font-medium">Orçamento Limite</span>
-              <span className="text-sm font-bold">{settings.currency} {settings.budgetLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
+          <div className="text-right">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">
+              {t.budgetLimit}
+            </span>
+            <span className={`text-sm font-bold ${budgetExceeded ? 'text-red-500 font-black' : 'text-gray-700'}`}>
+              {settings.currency} {settings.budgetLimit.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
             {budgetExceeded && (
-              <div className="w-full flex justify-between items-center text-[10px] mt-0.5 leading-tight opacity-90">
-                <span className="font-medium">Acima do limite:</span>
-                <span className="font-bold">{settings.currency} {(totalValue - settings.budgetLimit).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <div className="text-[9px] font-black text-red-500 uppercase tracking-tighter animate-pulse flex items-center justify-end gap-1 mt-0.5">
+                <span className="font-medium">{t.overLimit}</span>
+                <span className="font-bold">{settings.currency} {(totalValue - settings.budgetLimit).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             )}
           </div>
@@ -615,7 +891,8 @@ const App: React.FC = () => {
         <button
           onClick={scrollToTop}
           className="fixed bottom-28 right-6 z-40 bg-white p-2.5 rounded-full shadow-xl border border-gray-100 text-blue-600 transition-all animate-in fade-in zoom-in duration-300 active:scale-90"
-          aria-label="Voltar ao topo"
+          aria-label={t.backToTop}
+          title={t.backToTop}
         >
           <ChevronUp size={20} strokeWidth={3} />
         </button>
@@ -626,7 +903,6 @@ const App: React.FC = () => {
           settings={settings} 
           onUpdate={setSettings} 
           onClose={() => setShowSettings(false)} 
-          initialSection={settingsInitialSection} 
         />
       )}
       {showExportModal && (
@@ -634,6 +910,7 @@ const App: React.FC = () => {
           onConfirm={handleExport} 
           onSaveHistory={saveToHistory}
           onClose={() => setShowExportModal(false)} 
+          lang={currentLang}
         />
       )}
       
@@ -642,7 +919,7 @@ const App: React.FC = () => {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)} />
           <div className="relative bg-white w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300">
             <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 sm:hidden" onClick={() => setShowClearConfirm(false)} />
-            <h2 className="text-xl font-bold mb-8 text-center text-gray-900">Limpar Lista?</h2>
+            <h2 className="text-xl font-bold mb-8 text-center text-gray-900">{t.clearListTitle}</h2>
             <div className="space-y-3">
               <button 
                 onClick={() => clearList('purchased')} 
@@ -651,16 +928,16 @@ const App: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Remover Comprados
+                {t.removePurchased}
               </button>
               <button 
                 onClick={() => clearList('unavailable')} 
                 className="w-full py-4 bg-amber-50 text-amber-700 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                 </svg>
-                Remover Indisponíveis
+                {t.removeUnavailable}
               </button>
               <button 
                 onClick={() => clearList('all')} 
@@ -669,13 +946,13 @@ const App: React.FC = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                Remover TUDO
+                {t.removeAll}
               </button>
               <button 
                 onClick={() => setShowClearConfirm(false)} 
                 className="w-full py-4 text-gray-400 font-bold"
               >
-                Cancelar
+                {t.cancel}
               </button>
             </div>
           </div>
