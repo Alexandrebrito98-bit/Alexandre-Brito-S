@@ -14,7 +14,7 @@ export const CATEGORIES: CategoryDefinition[] = [
   {
     id: 'produce',
     names: {
-      pt: 'Hortifrúti',
+      pt: 'Hortifruti',
       en: 'Produce & Fresh',
     },
     icon: '🍎',
@@ -80,7 +80,7 @@ export const CATEGORIES: CategoryDefinition[] = [
   {
     id: 'pantry',
     names: {
-      pt: 'Mercearia & Despensa',
+      pt: 'Mercearia',
       en: 'Pantry & Grains',
     },
     icon: '🍚',

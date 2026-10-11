@@ -4,6 +4,7 @@ import { ShoppingItem, AppSettings, SwipeAction } from '../types';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import { Store, Check, X, ChevronDown } from 'lucide-react';
 import { getTranslation } from '../i18n';
+import { APP_THEMES, DEFAULT_APP_THEME, AppThemeId } from '../utils/appThemes';
 
 interface ItemCardProps {
   item: ShoppingItem;
@@ -14,6 +15,7 @@ interface ItemCardProps {
   settings: AppSettings;
   isViewMode?: boolean;
   onOpenSettingsMarkets?: () => void;
+  onEditingChange?: (isEditing: boolean, mode?: 'hold' | 'edit') => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({ 
@@ -23,7 +25,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   textSizeClass, 
   settings, 
   isViewMode = false,
-  onOpenSettingsMarkets
+  onOpenSettingsMarkets,
+  onEditingChange
 }) => {
   const currentLang = settings.language || 'pt';
   const t = getTranslation(currentLang);
@@ -58,6 +61,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     ? settings.markets.find(m => m.id === item.marketId)
     : null;
 
+  const notifyEditing = useCallback((active: boolean, mode: 'hold' | 'edit' = 'edit') => {
+    if (onEditingChange) {
+      onEditingChange(active, mode);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('superlist:item-editing', {
+        detail: { active, mode }
+      }));
+    }
+  }, [onEditingChange]);
+
   const cancelLongPress = useCallback(() => {
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
@@ -74,13 +88,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     }
     setIsHoldingName(false);
     nameTouchStartRef.current = null;
-  }, []);
+    if (!isEditingName) {
+      notifyEditing(false);
+    }
+  }, [isEditingName, notifyEditing]);
 
   const startEditing = useCallback(() => {
     setEditNameValue(item.name);
     setIsEditingName(true);
     setIsMenuOpen(false);
-  }, [item.name]);
+    notifyEditing(true, 'edit');
+  }, [item.name, notifyEditing]);
 
   const handleNamePointerDown = (e: React.PointerEvent) => {
     if (isViewMode || isEditingName) return;
@@ -92,6 +110,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
     nameTouchStartRef.current = { x: e.clientX, y: e.clientY };
     setIsHoldingName(true);
+    notifyEditing(true, 'hold');
 
     nameHoldTimerRef.current = setTimeout(() => {
       cancelNameHold();
@@ -263,6 +282,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       onUpdate({ name: trimmed.charAt(0).toUpperCase() + trimmed.slice(1) });
     }
     setIsEditingName(false);
+    notifyEditing(false);
   };
 
   const handlePriceBlur = () => {
@@ -285,12 +305,20 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     return '#ffffff';
   };
 
+  const activeThemeId: AppThemeId = (typeof settings.theme === 'string' && settings.theme in APP_THEMES)
+    ? (settings.theme as AppThemeId)
+    : DEFAULT_APP_THEME;
+  const currentAppTheme = APP_THEMES[activeThemeId] || APP_THEMES[DEFAULT_APP_THEME];
+
+  const isDarkCard = currentAppTheme.isDark;
+  const defaultCardBg = currentAppTheme.colors.card;
+
   const background = useTransform(
     x,
     [-150, 0, 150],
     [
       getActionColor(settings.leftSwipeAction),
-      '#ffffff',
+      defaultCardBg,
       getActionColor(settings.rightSwipeAction)
     ]
   );
@@ -360,24 +388,63 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   if (isViewMode) {
     return (
-      <div className={`flex items-center py-3.5 px-3 transition-all border-b border-gray-100 last:border-0 ${!item.isAvailable ? 'bg-gray-50/50' : ''}`}>
+      <div 
+        style={{
+          borderColor: currentAppTheme.colors.border,
+          backgroundColor: !item.isAvailable 
+            ? (isDarkCard ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0, 0, 0, 0.02)') 
+            : undefined
+        }}
+        className={`flex items-center py-3.5 px-3 transition-all border-b last:border-0 ${
+          isDarkCard ? 'border-slate-700/60' : 'border-gray-100'
+        } ${!item.isAvailable ? (isDarkCard ? 'bg-slate-900/40' : 'bg-gray-50/50') : ''}`}
+      >
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`font-bold text-gray-800 truncate ${textSizeClass} ${!item.isAvailable ? 'line-through text-gray-400' : ''}`}>
+            <span 
+              style={{
+                color: !item.isAvailable ? currentAppTheme.colors.textSecondary : currentAppTheme.colors.text
+              }}
+              className={`font-bold truncate ${textSizeClass} ${
+                !item.isAvailable ? 'line-through text-gray-400' : isDarkCard ? 'text-slate-100' : 'text-gray-800'
+              }`}
+            >
               {item.name}
             </span>
-            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter shrink-0 ${
-              !item.isAvailable ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
-            }`}>
+            <span 
+              style={item.isAvailable ? { 
+                backgroundColor: currentAppTheme.colors.chipAvailableBg,
+                color: currentAppTheme.colors.chipAvailableText
+              } : undefined}
+              className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter shrink-0 ${
+                !item.isAvailable ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
+              }`}
+            >
               {item.quantity} {t.unitShort}
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-1">
             {item.isPurchased && item.isAvailable && (
-              <span className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase">{t.purchasedBadge}</span>
+              <span 
+                style={{
+                  backgroundColor: currentAppTheme.colors.chipPurchasedBg,
+                  color: currentAppTheme.colors.chipPurchasedText
+                }}
+                className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase"
+              >
+                {t.purchasedBadge}
+              </span>
             )}
             {!item.isAvailable && (
-              <span className="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase">{t.unavailableBadge}</span>
+              <span 
+                style={{
+                  backgroundColor: currentAppTheme.colors.chipUnavailableBg,
+                  color: currentAppTheme.colors.chipUnavailableText
+                }}
+                className="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase"
+              >
+                {t.unavailableBadge}
+              </span>
             )}
             {associatedMarket && (
               <span className="text-[8px] text-gray-500 font-bold bg-gray-100 px-1.5 py-0.5 rounded-md tracking-tight">
@@ -388,10 +455,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         </div>
 
         <div className="flex flex-col items-end shrink-0">
-          <span className={`font-bold text-gray-700 ${textSizeClass} ${!item.isAvailable ? 'text-gray-400' : ''}`}>
+          <span 
+            style={{
+              color: !item.isAvailable ? currentAppTheme.colors.textSecondary : currentAppTheme.colors.text
+            }}
+            className={`font-bold ${textSizeClass} ${!item.isAvailable ? 'text-gray-400' : isDarkCard ? 'text-slate-200' : 'text-gray-700'}`}
+          >
             {currency} {item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          <span className="text-[9px] text-gray-400 font-medium">
+          <span 
+            style={{ color: currentAppTheme.colors.textSecondary }}
+            className="text-[9px] text-gray-400 font-medium"
+          >
             {t.subtotal} {currency} {subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
@@ -400,11 +475,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   }
 
   return (
-    <div className="relative overflow-hidden border-b border-gray-100 last:border-0 item-card select-none">
+    <div 
+      style={{ borderColor: currentAppTheme.colors.border }}
+      className="relative overflow-hidden border-b border-gray-100 last:border-0 item-card select-none"
+    >
       {/* Indicador visual de Long Press (~1s) */}
       {isLongPressing && (
         <div className="absolute top-0 left-0 right-0 h-1 bg-blue-100/60 overflow-hidden z-30 pointer-events-none rounded-t-lg">
-          <div className="h-full bg-blue-600 rounded-full animate-long-press" />
+          <div 
+            style={{ backgroundColor: currentAppTheme.colors.primary }}
+            className="h-full bg-blue-600 rounded-full animate-long-press" 
+          />
         </div>
       )}
 
@@ -553,17 +634,32 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
         <div className="flex flex-col flex-1 pr-2 min-w-0">
           <div className="flex items-center">
-            <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100 mr-2 shrink-0">
+            <div 
+              style={{
+                backgroundColor: currentAppTheme.isDark ? 'rgba(15, 23, 42, 0.8)' : '#F9FAFB',
+                borderColor: currentAppTheme.colors.border
+              }}
+              className={`flex items-center rounded-lg p-0.5 border mr-2 shrink-0 ${
+                isDarkCard ? 'bg-slate-900/80 border-slate-700' : 'bg-gray-50 border-gray-100'
+              }`}
+            >
               <button 
                 onClick={() => onUpdate({ quantity: Math.max(1, item.quantity - 1) })}
-                className="w-7 h-7 flex items-center justify-center text-blue-600 font-bold active:bg-white rounded-md transition-colors text-xs"
+                className="w-7 h-7 flex items-center justify-center font-bold active:scale-95 rounded-md transition-colors text-xs"
+                style={{ color: currentAppTheme.colors.primary }}
               >
                 −
               </button>
-              <span className="w-6 text-center font-bold text-gray-700 text-[11px]">{item.quantity}</span>
+              <span 
+                style={{ color: currentAppTheme.colors.text }}
+                className={`w-6 text-center font-bold text-[11px] ${isDarkCard ? 'text-slate-100' : 'text-gray-700'}`}
+              >
+                {item.quantity}
+              </span>
               <button 
                 onClick={() => onUpdate({ quantity: item.quantity + 1 })}
-                className="w-7 h-7 flex items-center justify-center text-blue-600 font-bold active:bg-white rounded-md transition-colors text-xs"
+                className="w-7 h-7 flex items-center justify-center font-bold active:scale-95 rounded-md transition-colors text-xs"
+                style={{ color: currentAppTheme.colors.primary }}
               >
                 +
               </button>
@@ -579,7 +675,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   onChange={(e) => setEditNameValue(e.target.value)}
                   onBlur={saveName}
                   onKeyDown={(e) => e.key === 'Enter' && saveName()}
-                  className={`w-full bg-blue-50 border border-blue-200 rounded-md px-1 py-0.5 font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-400 ${textSizeClass}`}
+                  className={`w-full border rounded-md px-1 py-0.5 font-bold outline-none ${
+                    isDarkCard 
+                      ? 'bg-slate-900 border-slate-600 text-white' 
+                      : 'bg-blue-50 border-blue-200 text-gray-800'
+                  } ${textSizeClass}`}
                 />
               ) : (
                 <div 
@@ -591,22 +691,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   onContextMenu={(e) => e.preventDefault()}
                   style={{ WebkitTouchCallout: 'none' }}
                   className={`relative inline-flex flex-col max-w-full cursor-pointer select-none rounded-md px-1 -mx-1 py-0.5 transition-all ${
-                    isHoldingName ? 'bg-blue-50/90 scale-[0.98]' : 'active:bg-gray-50/60'
+                    isHoldingName ? 'bg-blue-50/90 scale-[0.98]' : 'active:opacity-80'
                   }`}
                   title={t.holdToEditTitle}
                 >
                   <span 
-                    className={`font-bold text-gray-800 truncate ${textSizeClass} ${!item.isAvailable ? 'line-through text-gray-400' : ''}`}
+                    className={`font-bold truncate ${textSizeClass} ${
+                      !item.isAvailable 
+                        ? 'line-through text-gray-400' 
+                        : isDarkCard ? 'text-slate-100' : 'text-gray-800'
+                    }`}
                   >
                     {item.name}
                   </span>
-
-                  {/* Indicador visual de progresso animado de 1 segundo ao segurar */}
-                  {isHoldingName && (
-                    <div className="absolute -bottom-0.5 left-1 right-1 h-0.5 bg-blue-200 rounded-full overflow-hidden pointer-events-none">
-                      <div className="h-full bg-blue-600 rounded-full animate-long-press" />
-                    </div>
-                  )}
                 </div>
               )}
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -617,7 +714,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight">{t.unavailableBadge}</span>
                 )}
                 {associatedMarket && (
-                  <span className="text-[9px] text-gray-500 font-semibold bg-gray-100 px-1.5 py-0.5 rounded-md flex items-center gap-1 tracking-tight">
+                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-1 tracking-tight bg-gray-100 text-gray-600">
                     <Store className="w-2.5 h-2.5 text-gray-400" />
                     {associatedMarket.name}
                   </span>
@@ -635,11 +732,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               type="text"
               inputMode="decimal"
               value={displayPrice}
+              onFocus={() => notifyEditing(true, 'edit')}
               onChange={(e) => handlePriceChange(e.target.value)}
-              onBlur={handlePriceBlur}
+              onBlur={() => {
+                handlePriceBlur();
+                notifyEditing(false);
+              }}
               placeholder={t.pricePlaceholder}
               className={`w-16 bg-transparent border-none text-right font-bold transition-colors focus:ring-0 p-0 outline-none ${
-                item.isPurchased && item.isAvailable ? 'text-green-600' : 'text-gray-900'
+                item.isPurchased && item.isAvailable ? 'text-green-600' : isDarkCard ? 'text-slate-100' : 'text-gray-900'
               } ${textSizeClass}`}
             />
           </div>

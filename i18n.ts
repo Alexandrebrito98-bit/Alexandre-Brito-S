@@ -4,6 +4,15 @@ export const translations = {
   pt: {
     // Header
     appName: 'Minha Lista',
+    summary: 'Resumo',
+    categorySummary: 'Resumo por Categorias',
+    expandCategorySummary: 'Expandir resumo por categorias',
+    collapseCategorySummary: 'Recolher resumo por categorias',
+    closeCategorySummary: 'Fechar resumo em tela cheia',
+    backToOverview: 'Voltar ao Resumo',
+    productsLabel: (count: number) => count === 1 ? '1 produto' : `${count} produtos`,
+    noSummaryItems: 'Nenhum produto cadastrado para gerar o resumo.',
+    totalLabel: 'Total',
     quickControl: 'Controle rápido',
     viewMode: 'Modo Visualização',
     exportList: 'Exportar Lista',
@@ -78,6 +87,8 @@ export const translations = {
     // Settings
     settingsTitle: 'Configurações',
     settingsSubtitle: 'Ajuste a experiência às suas necessidades',
+    themeSectionTitle: 'Tema',
+    themeSectionSubtitle: 'Escolha a paleta de cores para todo o aplicativo',
     languageSectionTitle: 'Idioma',
     languageSectionSubtitle: 'Selecione o idioma do aplicativo',
     langPt: 'Português',
@@ -113,6 +124,28 @@ export const translations = {
     viewItems: 'Visualizar itens',
     deleteHistory: 'Excluir histórico',
 
+    // Favorites & Most Purchased
+    favoritesTitle: 'Favoritos',
+    favoritesSubtitle: 'Cadastre produtos frequentes para adicionar à lista',
+    favoriteInputPlaceholder: 'Nome do produto frequente...',
+    favoriteQtyPlaceholder: 'Qtd',
+    addFavoriteBtn: 'Cadastrar',
+    addAllFavorites: 'Adicionar Todos à Lista',
+    addAllFavoritesShort: (count: number) => `Adicionar Todos (${count})`,
+    noFavorites: 'Nenhum produto favorito cadastrado ainda.',
+    itemAddedToList: (name: string) => `"${name}" adicionado à lista!`,
+    allItemsAddedToList: (count: number) => `${count} produto(s) adicionado(s) à lista!`,
+    favoriteDeletedToast: 'Favorito removido.',
+    addItemToShoppingList: 'Adicionar à lista de compras',
+    
+    // Most Purchased (Rankings)
+    mostPurchasedTitle: 'Mais Comprados',
+    mostPurchasedSubtitle: 'Rankings dos produtos mais frequentes no histórico',
+    top5Rank: 'Top 5',
+    top10Rank: 'Top 10',
+    noMostPurchased: 'Nenhum registro de compras no histórico ainda.',
+    purchasedStats: (times: number, qty: number) => `Comprado ${times}x • ${qty} un.`,
+
     // Export Modal
     exportModalTitle: 'Exportar Lista',
     exportModalSubtitle: 'Como você deseja baixar o arquivo PDF ou salvar no histórico?',
@@ -142,6 +175,15 @@ export const translations = {
   en: {
     // Header
     appName: 'My List',
+    summary: 'Summary',
+    categorySummary: 'Category Summary',
+    expandCategorySummary: 'Expand category summary',
+    collapseCategorySummary: 'Collapse category summary',
+    closeCategorySummary: 'Close full screen summary',
+    backToOverview: 'Back to Summary',
+    productsLabel: (count: number) => count === 1 ? '1 product' : `${count} products`,
+    noSummaryItems: 'No products in the list to generate summary.',
+    totalLabel: 'Total',
     quickControl: 'Quick control',
     viewMode: 'View Mode',
     exportList: 'Export List',
@@ -216,6 +258,8 @@ export const translations = {
     // Settings
     settingsTitle: 'Settings',
     settingsSubtitle: 'Customize the experience to your needs',
+    themeSectionTitle: 'Theme',
+    themeSectionSubtitle: 'Choose the color theme for the whole app',
     languageSectionTitle: 'Language',
     languageSectionSubtitle: 'Select the application language',
     langPt: 'Português',
@@ -250,6 +294,28 @@ export const translations = {
     historyItemsCount: (count: number) => `${count} items`,
     viewItems: 'View items',
     deleteHistory: 'Delete history',
+
+    // Favorites & Most Purchased
+    favoritesTitle: 'Favorites',
+    favoritesSubtitle: 'Register frequent products to add quickly to your list',
+    favoriteInputPlaceholder: 'Frequent product name...',
+    favoriteQtyPlaceholder: 'Qty',
+    addFavoriteBtn: 'Add',
+    addAllFavorites: 'Add All to List',
+    addAllFavoritesShort: (count: number) => `Add All (${count})`,
+    noFavorites: 'No favorite products registered yet.',
+    itemAddedToList: (name: string) => `"${name}" added to list!`,
+    allItemsAddedToList: (count: number) => `${count} product(s) added to list!`,
+    favoriteDeletedToast: 'Favorite removed.',
+    addItemToShoppingList: 'Add to shopping list',
+
+    // Most Purchased (Rankings)
+    mostPurchasedTitle: 'Most Purchased',
+    mostPurchasedSubtitle: 'Rankings of frequent products from purchase history',
+    top5Rank: 'Top 5',
+    top10Rank: 'Top 10',
+    noMostPurchased: 'No purchase records in history yet.',
+    purchasedStats: (times: number, qty: number) => `Purchased ${times}x • ${qty} pcs`,
 
     // Export Modal
     exportModalTitle: 'Export List',

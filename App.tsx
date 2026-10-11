@@ -4,12 +4,20 @@ import { Header } from './components/Header';
 import { ItemCard } from './components/ItemCard';
 import { SettingsModal } from './components/SettingsModal';
 import { ExportModal } from './components/ExportModal';
-import { ChevronUp, Check, SlidersHorizontal, ArrowUpDown, DollarSign, Shapes, Clock } from 'lucide-react';
+import { ChevronUp, Check, SlidersHorizontal, ArrowUpDown, DollarSign, Shapes, Clock, Maximize2, ArrowLeft, ChevronDown } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useKeyboardAvoidance } from './hooks/useKeyboardAvoidance';
 import { getTranslation } from './i18n';
 import { detectCategory, getCategoryDisplayName, CategoryDefinition } from './utils/categoryDetector';
+import { 
+  DEFAULT_THEME_CONFIG, 
+  COLOR_OPTIONS, 
+  FONT_OPTIONS, 
+  BACKGROUND_OPTIONS, 
+  TEXTURE_OPTIONS 
+} from './utils/themePresets';
+import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME, AppThemeConfig } from './utils/appThemes';
 
 const STORAGE_KEY = 'superlist_data';
 const SETTINGS_KEY = 'superlist_settings';
@@ -19,6 +27,7 @@ const App: React.FC = () => {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>({
     language: 'pt',
+    theme: DEFAULT_APP_THEME,
     textSize: 'small',
     sortMode: SortMode.NameAZ,
     isBudgetModeActive: false,
@@ -33,6 +42,7 @@ const App: React.FC = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [viewSortOption, setViewSortOption] = useState<ViewSortOption>('alphabetical');
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  const [isCategorySummaryOpen, setIsCategorySummaryOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   const [newItemName, setNewItemName] = useState('');
@@ -52,6 +62,28 @@ const App: React.FC = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [deletedItemInfo, setDeletedItemInfo] = useState<{ item: ShoppingItem; originalIndex: number } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [editingItemState, setEditingItemState] = useState<{
+    active: boolean;
+    mode?: 'hold' | 'edit';
+  }>({ active: false });
+
+  const handleItemEditingChange = useCallback((active: boolean, mode: 'hold' | 'edit' = 'edit') => {
+    setEditingItemState({ active, mode });
+  }, []);
+
+  useEffect(() => {
+    const handleCustomEditing = (e: Event) => {
+      const customEvent = e as CustomEvent<{ active: boolean; mode?: 'hold' | 'edit' }>;
+      if (customEvent.detail) {
+        setEditingItemState(customEvent.detail);
+      }
+    };
+    window.addEventListener('superlist:item-editing', handleCustomEditing);
+    return () => {
+      window.removeEventListener('superlist:item-editing', handleCustomEditing);
+    };
+  }, []);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -62,11 +94,40 @@ const App: React.FC = () => {
   const t = getTranslation(currentLang);
   const locale = currentLang === 'en' ? 'en-US' : 'pt-BR';
 
+  // Resolução do Tema Ativo (Clássico, Floresta, Noturno, Lavanda)
+  const activeThemeId: AppThemeId = useMemo(() => {
+    if (typeof settings.theme === 'string' && settings.theme in APP_THEMES) {
+      return settings.theme as AppThemeId;
+    }
+    return DEFAULT_APP_THEME;
+  }, [settings.theme]);
+
+  const activeAppTheme: AppThemeConfig = APP_THEMES[activeThemeId] || APP_THEMES[DEFAULT_APP_THEME];
+
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = currentLang === 'en' ? 'en' : 'pt-BR';
+      
+      // Aplica as variáveis CSS de cor em :root para todo o aplicativo
+      const root = document.documentElement;
+      root.style.setProperty('--color-theme-bg', activeAppTheme.colors.background);
+      root.style.setProperty('--color-theme-card', activeAppTheme.colors.card);
+      root.style.setProperty('--color-theme-primary', activeAppTheme.colors.primary);
+      root.style.setProperty('--color-theme-primary-hover', activeAppTheme.colors.primaryHover);
+      root.style.setProperty('--color-theme-primary-light', activeAppTheme.colors.primaryLight);
+      root.style.setProperty('--color-theme-accent', activeAppTheme.colors.accent);
+      root.style.setProperty('--color-theme-warning', activeAppTheme.colors.warning);
+      root.style.setProperty('--color-theme-text', activeAppTheme.colors.text);
+      root.style.setProperty('--color-theme-text-secondary', activeAppTheme.colors.textSecondary);
+      root.style.setProperty('--color-theme-border', activeAppTheme.colors.border);
+      
+      // Meta theme-color
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', activeAppTheme.colors.primary);
+      }
     }
-  }, [currentLang]);
+  }, [currentLang, activeAppTheme]);
 
   // Close sort menu on click outside
   useEffect(() => {
@@ -327,6 +388,72 @@ const App: React.FC = () => {
     inputRef.current?.focus();
   }, [newItemName, newItemQty, newItemPrice, items, isNewItemPurchased, isNewItemUnavailable, t]);
 
+  const handleAddItemFromSettings = useCallback((itemData: { name: string; quantity?: number; unitPrice?: number }) => {
+    const rawName = itemData.name.trim();
+    if (!rawName) return;
+    const qty = itemData.quantity && itemData.quantity > 0 ? itemData.quantity : 1;
+    const price = itemData.unitPrice && itemData.unitPrice >= 0 ? itemData.unitPrice : 0;
+
+    setItems(prev => {
+      const existing = prev.find(i => i.name.toLowerCase() === rawName.toLowerCase());
+      if (existing) {
+        return prev.map(i => i.id === existing.id ? {
+          ...i,
+          quantity: i.quantity + qty,
+          unitPrice: price > 0 ? price : i.unitPrice,
+          isAvailable: true,
+          addedAt: Date.now()
+        } : i);
+      }
+      const newItem: ShoppingItem = {
+        id: crypto.randomUUID(),
+        name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
+        quantity: qty,
+        unitPrice: price,
+        isAvailable: true,
+        isPurchased: false,
+        addedAt: Date.now()
+      };
+      return [newItem, ...prev];
+    });
+    showToast(t.itemAddedToList(rawName));
+  }, [showToast, t]);
+
+  const handleAddMultipleItemsFromSettings = useCallback((itemsData: { name: string; quantity?: number; unitPrice?: number }[]) => {
+    if (!itemsData || itemsData.length === 0) return;
+    setItems(prev => {
+      let next = [...prev];
+      itemsData.forEach(itemData => {
+        const rawName = itemData.name.trim();
+        if (!rawName) return;
+        const qty = itemData.quantity && itemData.quantity > 0 ? itemData.quantity : 1;
+        const price = itemData.unitPrice && itemData.unitPrice >= 0 ? itemData.unitPrice : 0;
+        const existingIndex = next.findIndex(i => i.name.toLowerCase() === rawName.toLowerCase());
+        if (existingIndex >= 0) {
+          next[existingIndex] = {
+            ...next[existingIndex],
+            quantity: next[existingIndex].quantity + qty,
+            unitPrice: price > 0 ? price : next[existingIndex].unitPrice,
+            isAvailable: true,
+            addedAt: Date.now()
+          };
+        } else {
+          next.unshift({
+            id: crypto.randomUUID(),
+            name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
+            quantity: qty,
+            unitPrice: price,
+            isAvailable: true,
+            isPurchased: false,
+            addedAt: Date.now()
+          });
+        }
+      });
+      return next;
+    });
+    showToast(t.allItemsAddedToList(itemsData.length));
+  }, [showToast, t]);
+
   const handleExport = useCallback((includePrice: boolean) => {
     const doc = new jsPDF();
     const currency = settings.currency;
@@ -431,9 +558,12 @@ const App: React.FC = () => {
   const defaultSections = useMemo<Record<string, ShoppingItem[]>>(() => {
     let baseFiltered = items.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    if (filterStatus === 'pending') baseFiltered = baseFiltered.filter(i => i.isAvailable && !i.isPurchased);
-    if (filterStatus === 'purchased') baseFiltered = baseFiltered.filter(i => i.isAvailable && i.isPurchased);
-    if (filterStatus === 'unavailable') baseFiltered = baseFiltered.filter(i => !i.isAvailable);
+    // Filtragem por status só é aplicada quando o modo Visualização estiver ativo
+    if (isViewMode) {
+      if (filterStatus === 'pending') baseFiltered = baseFiltered.filter(i => i.isAvailable && !i.isPurchased);
+      if (filterStatus === 'purchased') baseFiltered = baseFiltered.filter(i => i.isAvailable && i.isPurchased);
+      if (filterStatus === 'unavailable') baseFiltered = baseFiltered.filter(i => !i.isAvailable);
+    }
 
     const sortFn = getItemSortFn(viewSortOption);
 
@@ -444,7 +574,7 @@ const App: React.FC = () => {
     };
 
     return grouped;
-  }, [items, searchTerm, viewSortOption, filterStatus]);
+  }, [items, searchTerm, viewSortOption, filterStatus, isViewMode]);
 
   const viewModeData = useMemo(() => {
     let baseFiltered = items.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -495,6 +625,66 @@ const App: React.FC = () => {
     return { isCategoryMode: false as const, items: sorted };
   }, [items, searchTerm, filterStatus, viewSortOption, currentLang]);
 
+  interface CategorySummaryItem {
+    category: CategoryDefinition;
+    productCount: number;
+    totalValue: number;
+  }
+
+  const categorySummary = useMemo<CategorySummaryItem[]>(() => {
+    let filtered = items;
+    if (filterStatus === 'pending') {
+      filtered = items.filter(i => i.isAvailable && !i.isPurchased);
+    } else if (filterStatus === 'purchased') {
+      filtered = items.filter(i => i.isAvailable && i.isPurchased);
+    } else if (filterStatus === 'unavailable') {
+      filtered = items.filter(i => !i.isAvailable);
+    }
+
+    const map = new Map<string, { category: CategoryDefinition; count: number; totalValue: number }>();
+
+    filtered.forEach(item => {
+      const cat = detectCategory(item.name);
+      const val = (item.unitPrice || 0) * (item.quantity || 1);
+      const existing = map.get(cat.id);
+      if (existing) {
+        existing.count += 1;
+        existing.totalValue += val;
+      } else {
+        map.set(cat.id, {
+          category: cat,
+          count: 1,
+          totalValue: val
+        });
+      }
+    });
+
+    const result: CategorySummaryItem[] = Array.from(map.values()).map(entry => ({
+      category: entry.category,
+      productCount: entry.count,
+      totalValue: entry.totalValue
+    }));
+
+    result.sort((a, b) => {
+      if (b.totalValue !== a.totalValue) return b.totalValue - a.totalValue;
+      if (a.category.id === 'other') return 1;
+      if (b.category.id === 'other') return -1;
+      const nameA = getCategoryDisplayName(a.category, currentLang);
+      const nameB = getCategoryDisplayName(b.category, currentLang);
+      return nameA.localeCompare(nameB);
+    });
+
+    return result;
+  }, [items, filterStatus, currentLang]);
+
+  const totalSummaryProducts = useMemo(() => {
+    return categorySummary.reduce((sum, c) => sum + c.productCount, 0);
+  }, [categorySummary]);
+
+  const totalSummaryValue = useMemo(() => {
+    return categorySummary.reduce((sum, c) => sum + c.totalValue, 0);
+  }, [categorySummary]);
+
   const budgetExceeded = settings.isBudgetModeActive && totalValue > settings.budgetLimit;
 
   const clearList = (type: 'all' | 'purchased' | 'unavailable') => {
@@ -512,7 +702,14 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className={`min-h-screen flex flex-col pb-32 ${settings.textSize === 'small' ? 'text-sm' : settings.textSize === 'large' ? 'text-lg' : 'text-base'}`}>
+    <div 
+      className={`min-h-screen flex flex-col pb-32 transition-colors relative ${settings.textSize === 'small' ? 'text-sm' : settings.textSize === 'large' ? 'text-lg' : 'text-base'}`}
+      style={{
+        backgroundColor: activeAppTheme.colors.background,
+        color: activeAppTheme.colors.text
+      }}
+    >
+      <div className="relative z-10 flex flex-col min-h-screen">
       <Header 
         itemCount={items.length} 
         availableCount={items.filter(i => i.isAvailable && !i.isPurchased).length}
@@ -521,16 +718,33 @@ const App: React.FC = () => {
         onOpenSettings={() => setShowSettings(true)}
         onClearList={() => setShowClearConfirm(true)}
         isViewMode={isViewMode}
-        onToggleViewMode={() => setIsViewMode(!isViewMode)}
+        onToggleViewMode={() => {
+          setIsViewMode(prev => {
+            if (prev) {
+              setFilterStatus('all');
+            }
+            return !prev;
+          });
+        }}
         onExport={() => setShowExportModal(true)}
         currentFilter={filterStatus}
         onFilterChange={setFilterStatus}
         lang={currentLang}
+        primaryColor={activeAppTheme.colors.primary}
+        isDarkTheme={activeAppTheme.isDark}
+        themeConfig={activeAppTheme}
       />
 
       <main className="flex-1 px-4 py-2 space-y-4 max-w-lg mx-auto w-full">
         {!isViewMode && (
-          <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-2">
+          <div 
+            style={{
+              backgroundColor: activeAppTheme.colors.card,
+              borderColor: activeAppTheme.colors.border,
+              color: activeAppTheme.colors.text
+            }}
+            className="p-3 rounded-2xl shadow-sm border mb-2 transition-colors"
+          >
             <div className="flex flex-col gap-2">
               <input
                 ref={inputRef}
@@ -539,14 +753,30 @@ const App: React.FC = () => {
                 onChange={(e) => setNewItemName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addItem()}
                 placeholder={t.productPlaceholder}
-                className="w-full px-4 py-3 rounded-xl border-gray-200 border bg-white outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                style={{
+                  backgroundColor: activeAppTheme.isDark ? 'rgba(15, 23, 42, 0.6)' : '#FFFFFF',
+                  borderColor: activeAppTheme.colors.border,
+                  color: activeAppTheme.colors.text
+                }}
+                className="w-full px-4 py-3 rounded-xl border outline-none font-medium transition-all"
               />
               
               <div className="flex gap-2 w-full items-center">
                 {/* Container Qtd e Preço */}
-                <div className="flex flex-1 items-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden shadow-inner">
+                <div 
+                  style={{
+                    backgroundColor: activeAppTheme.isDark ? 'rgba(15, 23, 42, 0.8)' : '#F9FAFB',
+                    borderColor: activeAppTheme.colors.border
+                  }}
+                  className="flex flex-1 items-center border rounded-xl overflow-hidden shadow-inner"
+                >
                   <div className="flex items-center flex-1 px-3">
-                    <span className="text-[10px] font-bold text-gray-400 mr-1 uppercase">{t.qtyLabel}</span>
+                    <span 
+                      style={{ color: activeAppTheme.colors.textSecondary }}
+                      className="text-[10px] font-bold mr-1 uppercase"
+                    >
+                      {t.qtyLabel}
+                    </span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -554,12 +784,21 @@ const App: React.FC = () => {
                       onChange={(e) => setNewItemQty(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && addItem()}
                       placeholder="1"
-                      className="w-full bg-transparent py-3 text-sm font-bold outline-none text-gray-700"
+                      style={{ color: activeAppTheme.colors.text }}
+                      className="w-full bg-transparent py-3 text-sm font-bold outline-none"
                     />
                   </div>
-                  <div className="w-px h-6 bg-gray-200" />
+                  <div 
+                    style={{ backgroundColor: activeAppTheme.colors.border }}
+                    className="w-px h-6" 
+                  />
                   <div className="flex items-center flex-[1.5] px-3">
-                    <span className="text-[10px] font-bold text-gray-400 mr-1 uppercase">{settings.currency}</span>
+                    <span 
+                      style={{ color: activeAppTheme.colors.textSecondary }}
+                      className="text-[10px] font-bold mr-1 uppercase"
+                    >
+                      {settings.currency}
+                    </span>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -573,7 +812,8 @@ const App: React.FC = () => {
                       }}
                       onKeyDown={(e) => e.key === 'Enter' && addItem()}
                       placeholder={t.pricePlaceholder}
-                      className="w-full bg-transparent py-3 text-sm font-bold outline-none text-gray-700"
+                      style={{ color: activeAppTheme.colors.text }}
+                      className="w-full bg-transparent py-3 text-sm font-bold outline-none"
                     />
                   </div>
                 </div>
@@ -582,11 +822,16 @@ const App: React.FC = () => {
                 <div className="flex gap-2 shrink-0">
                   <button 
                     onClick={handlePurchasedButtonClick}
-                    className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all active:scale-90 ${
-                      isNewItemPurchased 
-                      ? 'bg-green-600 text-white border-green-600 shadow-md shadow-green-100' 
-                      : 'bg-white text-gray-400 border-gray-200'
-                    }`}
+                    style={isNewItemPurchased ? {
+                      backgroundColor: '#16a34a',
+                      borderColor: '#16a34a',
+                      color: '#FFFFFF'
+                    } : {
+                      backgroundColor: activeAppTheme.colors.card,
+                      borderColor: activeAppTheme.colors.border,
+                      color: activeAppTheme.colors.textSecondary
+                    }}
+                    className="w-12 h-12 flex items-center justify-center rounded-xl border transition-all active:scale-90"
                     aria-label={newItemName.trim() ? t.markExistingAsPurchased : t.addAsPurchased}
                     title={newItemName.trim() ? t.markExistingAsPurchased : t.addAsPurchased}
                   >
@@ -597,7 +842,12 @@ const App: React.FC = () => {
                   
                   <button 
                     onClick={addItem}
-                    className="w-12 h-12 flex items-center justify-center rounded-xl bg-blue-600 text-white border border-blue-600 shadow-md shadow-blue-100 transition-all active:scale-90"
+                    style={{ 
+                      backgroundColor: activeAppTheme.colors.primary, 
+                      borderColor: activeAppTheme.colors.primary,
+                      color: activeAppTheme.isDark ? '#0F172A' : '#FFFFFF'
+                    }}
+                    className="w-12 h-12 flex items-center justify-center rounded-xl border shadow-md transition-all active:scale-90"
                     aria-label={t.addItem}
                     title={t.addItem}
                   >
@@ -608,7 +858,201 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-            {feedback && <p className="text-amber-600 text-[10px] mt-1 px-1 font-bold uppercase">{feedback}</p>}
+            {feedback && <p className="text-amber-500 text-[10px] mt-1 px-1 font-bold uppercase">{feedback}</p>}
+          </div>
+        )}
+
+        {/* Resumo por Categorias (exibido no modo Resumo / Visualização) */}
+        {isViewMode && (
+          <div 
+            style={{
+              backgroundColor: activeAppTheme.colors.card,
+              borderColor: activeAppTheme.colors.border,
+              color: activeAppTheme.colors.text
+            }}
+            className="rounded-2xl p-4 border shadow-sm transition-all animate-in fade-in slide-in-from-top-2 duration-300"
+          >
+            {/* Cabeçalho do Resumo por Categorias (com Total e Botão de Expandir/Recolher) */}
+            <div 
+              className={`flex items-center justify-between gap-2 transition-all ${
+                isCategorySummaryOpen ? 'pb-3 mb-2.5 border-b' : ''
+              }`}
+              style={{ borderColor: activeAppTheme.colors.border }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsCategorySummaryOpen(prev => !prev)}
+                className="flex items-center gap-2 text-left group cursor-pointer select-none min-w-0"
+                aria-expanded={isCategorySummaryOpen}
+              >
+                <div 
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
+                  style={{ backgroundColor: `${activeAppTheme.colors.primary}18`, color: activeAppTheme.colors.primary }}
+                >
+                  <Shapes className="w-4 h-4" />
+                </div>
+                <h2 
+                  style={{ color: activeAppTheme.colors.text }}
+                  className="text-sm font-bold tracking-tight truncate group-hover:opacity-90"
+                >
+                  {t.categorySummary}
+                </h2>
+                {categorySummary.length > 0 && (
+                  <span 
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
+                    style={{ backgroundColor: `${activeAppTheme.colors.primary}15`, color: activeAppTheme.colors.primary }}
+                  >
+                    {categorySummary.length}
+                  </span>
+                )}
+              </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Total visível diretamente no cabeçalho quando recolhido */}
+                {!isCategorySummaryOpen && categorySummary.length > 0 && (
+                  <span 
+                    className="text-xs font-black font-mono tracking-tight px-2.5 py-1 rounded-lg"
+                    style={{ 
+                      backgroundColor: `${activeAppTheme.colors.primary}12`,
+                      color: activeAppTheme.colors.primary 
+                    }}
+                  >
+                    {settings.currency} {totalSummaryValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsCategorySummaryOpen(prev => !prev)}
+                  style={{ 
+                    backgroundColor: `${activeAppTheme.colors.primary}15`,
+                    color: activeAppTheme.colors.primary
+                  }}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 hover:opacity-80 shrink-0"
+                  title={isCategorySummaryOpen ? t.collapseCategorySummary : t.expandCategorySummary}
+                  aria-label={isCategorySummaryOpen ? t.collapseCategorySummary : t.expandCategorySummary}
+                >
+                  <ChevronDown 
+                    className={`w-4 h-4 transition-transform duration-300 ease-in-out ${
+                      isCategorySummaryOpen ? 'rotate-180' : 'rotate-0'
+                    }`} 
+                    strokeWidth={2.5} 
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Conteúdo com Transição Suave (recolhido por padrão) */}
+            <div 
+              className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                isCategorySummaryOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+              }`}
+            >
+              <div className="overflow-hidden">
+                {categorySummary.length > 0 ? (
+                  <div className="divide-y divide-gray-100/70 dark:divide-slate-700/40">
+                    {categorySummary.map((item) => {
+                      const catName = getCategoryDisplayName(item.category, currentLang);
+                      const percentage = totalSummaryValue > 0 ? (item.totalValue / totalSummaryValue) * 100 : 0;
+
+                      return (
+                        <div 
+                          key={item.category.id}
+                          className="py-2.5 first:pt-1 last:pb-1 flex flex-col gap-1 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            {/* Categoria · Quantidade */}
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-base shrink-0 leading-none" role="img" aria-hidden="true">
+                                {item.category.icon}
+                              </span>
+                              <span 
+                                style={{ color: activeAppTheme.colors.text }}
+                                className="text-xs font-bold truncate"
+                              >
+                                {catName}
+                              </span>
+                              <span className="text-gray-300 dark:text-slate-600 text-xs select-none">·</span>
+                              <span 
+                                style={{ color: activeAppTheme.colors.textSecondary }}
+                                className="text-xs font-semibold shrink-0"
+                              >
+                                {t.productsLabel(item.productCount)}
+                              </span>
+                            </div>
+
+                            {/* Valor total gasto alinhado à direita */}
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              <span className="text-gray-300 dark:text-slate-600 text-xs select-none">·</span>
+                              <span className="text-xs font-bold font-mono tracking-tight text-gray-900 dark:text-white">
+                                {settings.currency} {item.totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Barra de proporção discreta */}
+                          {totalSummaryValue > 0 && percentage > 0 && (
+                            <div 
+                              style={{ backgroundColor: activeAppTheme.isDark ? 'rgba(51, 65, 85, 0.4)' : '#F3F4F6' }}
+                              className="w-full h-1 rounded-full overflow-hidden"
+                            >
+                              <div 
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ 
+                                  width: `${Math.max(percentage, 2)}%`,
+                                  backgroundColor: activeAppTheme.colors.primary,
+                                  opacity: 0.85
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Linha de Totalização elegante e compacta no final da lista */}
+                    <div 
+                      style={{ borderColor: activeAppTheme.colors.border }}
+                      className="pt-2.5 mt-1 flex items-center justify-between text-xs font-bold border-t"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span 
+                          style={{ color: activeAppTheme.colors.textSecondary }}
+                          className="uppercase text-[10px] tracking-wider font-extrabold"
+                        >
+                          {t.totalLabel}
+                        </span>
+                        <span className="text-gray-300 dark:text-slate-600 text-xs select-none">·</span>
+                        <span 
+                          style={{ color: activeAppTheme.colors.textSecondary }}
+                          className="text-xs font-medium"
+                        >
+                          {t.productsLabel(totalSummaryProducts)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className="text-gray-300 dark:text-slate-600 text-xs select-none">·</span>
+                        <span 
+                          className="text-xs font-extrabold font-mono tracking-tight"
+                          style={{ color: activeAppTheme.colors.primary }}
+                        >
+                          {settings.currency} {totalSummaryValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-4 text-center">
+                    <p 
+                      style={{ color: activeAppTheme.colors.textSecondary }}
+                      className="text-xs"
+                    >
+                      {t.noSummaryItems}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -621,7 +1065,12 @@ const App: React.FC = () => {
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
                 placeholder={t.searchPlaceholder} 
-                className="w-full bg-gray-100/50 rounded-xl py-2 pl-10 pr-4 text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all" 
+                style={{
+                  backgroundColor: activeAppTheme.isDark ? 'rgba(15, 23, 42, 0.6)' : '#FFFFFF',
+                  borderColor: activeAppTheme.colors.border,
+                  color: activeAppTheme.colors.text
+                }}
+                className="w-full rounded-xl py-2 pl-10 pr-4 text-xs border outline-none transition-all"
               />
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -633,11 +1082,16 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
-                className={`h-9 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all active:scale-95 text-xs font-bold ${
-                  isSortMenuOpen
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
-                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm'
-                }`}
+                style={isSortMenuOpen ? { 
+                  backgroundColor: activeAppTheme.colors.primary, 
+                  borderColor: activeAppTheme.colors.primary,
+                  color: activeAppTheme.isDark ? '#0F172A' : '#FFFFFF'
+                } : {
+                  backgroundColor: activeAppTheme.colors.card,
+                  borderColor: activeAppTheme.colors.border,
+                  color: activeAppTheme.colors.text
+                }}
+                className="h-9 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all active:scale-95 text-xs font-bold"
                 aria-label={t.sortButtonTitle}
                 title={t.sortButtonTitle}
               >
@@ -649,9 +1103,22 @@ const App: React.FC = () => {
 
                 {/* Dropdown Menu compacto e sem scroll horizontal */}
                 {isSortMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="px-3 py-1.5 border-b border-gray-50 flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  <div 
+                    style={{
+                      backgroundColor: activeAppTheme.colors.card,
+                      borderColor: activeAppTheme.colors.border,
+                      color: activeAppTheme.colors.text
+                    }}
+                    className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl shadow-xl border py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    <div 
+                      style={{ borderColor: activeAppTheme.colors.border }}
+                      className="px-3 py-1.5 border-b flex items-center justify-between"
+                    >
+                      <span 
+                        style={{ color: activeAppTheme.colors.textSecondary }}
+                        className="text-[10px] font-bold uppercase tracking-wider"
+                      >
                         {t.sortByLabel}
                       </span>
                     </div>
@@ -668,18 +1135,29 @@ const App: React.FC = () => {
                               setViewSortOption(opt.id);
                               setIsSortMenuOpen(false);
                             }}
+                            style={isSelected ? { 
+                              backgroundColor: activeAppTheme.colors.primaryLight, 
+                              color: activeAppTheme.colors.primary 
+                            } : {
+                              color: activeAppTheme.colors.text
+                            }}
                             className={`w-full px-3 py-2 rounded-xl text-left text-xs font-bold flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? 'bg-blue-50 text-blue-600'
-                                : 'text-gray-700 hover:bg-gray-50'
+                              isSelected ? 'font-black' : 'hover:opacity-80'
                             }`}
                           >
                             <div className="flex items-center gap-2.5 truncate">
-                              <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-blue-600' : 'text-gray-400'}`} />
+                              <Icon 
+                                className="w-3.5 h-3.5 shrink-0"
+                                style={isSelected ? { color: activeAppTheme.colors.primary } : undefined}
+                              />
                               <span className="truncate">{opt.label}</span>
                             </div>
                             {isSelected && (
-                              <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-1.5" strokeWidth={3} />
+                              <Check 
+                                className="w-3.5 h-3.5 shrink-0 ml-1.5" 
+                                style={{ color: activeAppTheme.colors.primary }}
+                                strokeWidth={3} 
+                              />
                             )}
                           </button>
                         );
@@ -690,13 +1168,30 @@ const App: React.FC = () => {
               </div>
           </div>
 
-          <div className="bg-white rounded-[2rem] p-4 border border-gray-100 shadow-sm min-h-[100px]">
+          <div 
+            style={{
+              backgroundColor: activeAppTheme.colors.card,
+              borderColor: activeAppTheme.colors.border,
+              color: activeAppTheme.colors.text
+            }}
+            className="rounded-[2rem] p-4 border shadow-sm min-h-[100px] transition-colors"
+          >
           {filterStatus !== 'all' && (
-            <div className="px-2 pb-4 flex justify-between items-center animate-in fade-in slide-in-from-top-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase">
+            <div 
+              style={{ borderColor: activeAppTheme.colors.border }}
+              className="px-2 pb-4 flex justify-between items-center animate-in fade-in slide-in-from-top-1 border-b mb-3"
+            >
+              <span 
+                style={{ color: activeAppTheme.colors.textSecondary }}
+                className="text-[10px] font-bold uppercase"
+              >
                 {t.filteringBy} {filterStatus === 'pending' ? t.filterAvailable : filterStatus === 'purchased' ? t.filterPurchased : t.filterUnavailable}
               </span>
-              <button onClick={() => setFilterStatus('all')} className="text-[10px] font-bold text-blue-600 uppercase">
+              <button 
+                onClick={() => setFilterStatus('all')} 
+                style={{ color: activeAppTheme.colors.primary }}
+                className="text-[10px] font-bold uppercase"
+              >
                 {t.clearFilter}
               </button>
             </div>
@@ -735,6 +1230,7 @@ const App: React.FC = () => {
                       titleSizeClass="" 
                       settings={settings} 
                       isViewMode={isViewMode}
+                      onEditingChange={handleItemEditingChange}
                     />
                   ))}
                 </div>
@@ -758,6 +1254,7 @@ const App: React.FC = () => {
                   titleSizeClass="" 
                   settings={settings} 
                   isViewMode={isViewMode}
+                  onEditingChange={handleItemEditingChange}
                 />
               ))}
               {viewModeData.items.length === 0 && (
@@ -787,6 +1284,7 @@ const App: React.FC = () => {
                       titleSizeClass="" 
                       settings={settings} 
                       isViewMode={isViewMode}
+                      onEditingChange={handleItemEditingChange}
                     />
                   ))}
                 </div>
@@ -859,22 +1357,63 @@ const App: React.FC = () => {
       )}
 
       {/* Footer Fixo com Total */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 px-6 py-4 flex justify-between items-center z-30 max-w-lg mx-auto">
+      <footer 
+        style={{
+          backgroundColor: activeAppTheme.isDark ? `${activeAppTheme.colors.card}F5` : `${activeAppTheme.colors.card}FA`,
+          borderColor: activeAppTheme.colors.border,
+          color: activeAppTheme.colors.text
+        }}
+        className="fixed bottom-0 left-0 right-0 backdrop-blur-md border-t px-6 py-4 flex justify-between items-center z-30 max-w-lg mx-auto transition-colors"
+      >
+        {/* Barra de progresso / indicador de salvamento ocupando a largura total, fina e fixa na borda superior */}
+        {editingItemState.active && (
+          <div 
+            className="absolute -top-[1.5px] left-0 right-0 h-[2.5px] overflow-hidden pointer-events-none z-40 transition-opacity duration-200"
+            style={{
+              backgroundColor: `${activeAppTheme.colors.primary}25`
+            }}
+          >
+            {editingItemState.mode === 'hold' ? (
+              <div 
+                style={{ backgroundColor: activeAppTheme.colors.primary }}
+                className="h-full w-full rounded-full animate-long-press"
+              />
+            ) : (
+              <div 
+                style={{ backgroundColor: activeAppTheme.colors.primary }}
+                className="h-full w-full rounded-full animate-pulse shadow-sm"
+              />
+            )}
+          </div>
+        )}
+
         <div>
-          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">
+          <span 
+            style={{ color: activeAppTheme.colors.textSecondary }}
+            className="text-[10px] font-bold uppercase tracking-widest block"
+          >
             {t.estimatedTotal}
           </span>
-          <span className="text-xl font-black text-gray-900">
+          <span 
+            style={{ color: activeAppTheme.colors.text }}
+            className="text-xl font-black"
+          >
             {settings.currency} {totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
         {settings.isBudgetModeActive && (
           <div className="text-right">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest block">
+            <span 
+              style={{ color: activeAppTheme.colors.textSecondary }}
+              className="text-[10px] font-bold uppercase tracking-widest block"
+            >
               {t.budgetLimit}
             </span>
-            <span className={`text-sm font-bold ${budgetExceeded ? 'text-red-500 font-black' : 'text-gray-700'}`}>
+            <span 
+              style={{ color: budgetExceeded ? '#ef4444' : activeAppTheme.colors.text }}
+              className={`text-sm font-bold ${budgetExceeded ? 'font-black' : ''}`}
+            >
               {settings.currency} {settings.budgetLimit.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             {budgetExceeded && (
@@ -890,7 +1429,12 @@ const App: React.FC = () => {
       {showScrollTop && !isKeyboardActive && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-28 right-6 z-40 bg-white p-2.5 rounded-full shadow-xl border border-gray-100 text-blue-600 transition-all animate-in fade-in zoom-in duration-300 active:scale-90"
+          style={{ 
+            backgroundColor: activeAppTheme.colors.card, 
+            borderColor: activeAppTheme.colors.border,
+            color: activeAppTheme.colors.primary 
+          }}
+          className="fixed bottom-28 right-6 z-40 p-2.5 rounded-full shadow-xl border transition-all animate-in fade-in zoom-in duration-300 active:scale-90"
           aria-label={t.backToTop}
           title={t.backToTop}
         >
@@ -903,6 +1447,8 @@ const App: React.FC = () => {
           settings={settings} 
           onUpdate={setSettings} 
           onClose={() => setShowSettings(false)} 
+          onAddItemToList={handleAddItemFromSettings}
+          onAddMultipleItemsToList={handleAddMultipleItemsFromSettings}
         />
       )}
       {showExportModal && (
@@ -913,6 +1459,8 @@ const App: React.FC = () => {
           lang={currentLang}
         />
       )}
+
+
       
       {showClearConfirm && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center animate-in fade-in">
@@ -958,6 +1506,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

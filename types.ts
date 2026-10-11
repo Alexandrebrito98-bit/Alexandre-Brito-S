@@ -1,3 +1,5 @@
+import type { CustomThemeConfig } from './utils/themePresets';
+import type { AppThemeId } from './utils/appThemes';
 
 export type TextSize = 'small' | 'medium' | 'large';
 
@@ -41,8 +43,16 @@ export interface SavedList {
 
 export type Language = 'pt' | 'en';
 
+export interface FavoriteProduct {
+  id: string;
+  name: string;
+  defaultQuantity?: number;
+  defaultUnitPrice?: number;
+}
+
 export interface AppSettings {
   language?: Language;
+  theme?: AppThemeId | CustomThemeConfig;
   textSize: TextSize;
   sortMode: SortMode;
   isBudgetModeActive: boolean;
@@ -54,5 +64,6 @@ export interface AppSettings {
   savedHistory: SavedList[];
   isOrganizeByMarketEnabled?: boolean;
   markets?: Market[];
+  favorites?: FavoriteProduct[];
 }
 
