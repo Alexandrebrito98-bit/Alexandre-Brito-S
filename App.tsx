@@ -43,6 +43,14 @@ const App: React.FC = () => {
   const [viewSortOption, setViewSortOption] = useState<ViewSortOption>('alphabetical');
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [isCategorySummaryOpen, setIsCategorySummaryOpen] = useState(false);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Record<string, boolean>>({});
+
+  const toggleCategoryExpansion = (categoryId: string) => {
+    setExpandedCategoryIds(prev => ({
+      ...prev,
+      [categoryId]: !prev[categoryId]
+    }));
+  };
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
   const [newItemName, setNewItemName] = useState('');
@@ -176,6 +184,15 @@ const App: React.FC = () => {
   };
 
   const totalValue = useMemo(() => items.filter(i => i.isAvailable).reduce((acc, curr) => acc + (curr.unitPrice * curr.quantity), 0), [items]);
+  const purchasedItemsCount = useMemo(() => items.filter(i => i.isAvailable && i.isPurchased).length, [items]);
+  const totalAvailableItemsCount = useMemo(() => {
+    const available = items.filter(i => i.isAvailable).length;
+    return available > 0 ? available : items.length;
+  }, [items]);
+  const purchaseProgressPercentage = useMemo(() => {
+    if (totalAvailableItemsCount === 0) return 0;
+    return Math.min(100, Math.round((purchasedItemsCount / totalAvailableItemsCount) * 100));
+  }, [purchasedItemsCount, totalAvailableItemsCount]);
 
   const saveToHistory = useCallback((clearAfterSave: boolean = false) => {
     if (items.length === 0) return;
@@ -208,7 +225,14 @@ const App: React.FC = () => {
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     const savedViewSort = localStorage.getItem(VIEW_SORT_KEY);
     if (savedItems) setItems(JSON.parse(savedItems) as ShoppingItem[]);
-    if (savedSettings) setSettings(prev => ({ ...prev, ...(JSON.parse(savedSettings) as Partial<AppSettings>) }));
+    if (savedSettings) {
+      const parsed = JSON.parse(savedSettings) as Partial<AppSettings>;
+      setSettings(prev => ({ 
+        ...prev, 
+        ...parsed, 
+        currency: parsed.currency === 'R$' ? '€' : (parsed.currency || '€') 
+      }));
+    }
     if (savedViewSort && ['alphabetical', 'value', 'category', 'last_modified'].includes(savedViewSort)) {
       setViewSortOption(savedViewSort as ViewSortOption);
     }
@@ -629,6 +653,7 @@ const App: React.FC = () => {
     category: CategoryDefinition;
     productCount: number;
     totalValue: number;
+    items: ShoppingItem[];
   }
 
   const categorySummary = useMemo<CategorySummaryItem[]>(() => {
@@ -641,7 +666,7 @@ const App: React.FC = () => {
       filtered = items.filter(i => !i.isAvailable);
     }
 
-    const map = new Map<string, { category: CategoryDefinition; count: number; totalValue: number }>();
+    const map = new Map<string, { category: CategoryDefinition; count: number; totalValue: number; items: ShoppingItem[] }>();
 
     filtered.forEach(item => {
       const cat = detectCategory(item.name);
@@ -650,20 +675,27 @@ const App: React.FC = () => {
       if (existing) {
         existing.count += 1;
         existing.totalValue += val;
+        existing.items.push(item);
       } else {
         map.set(cat.id, {
           category: cat,
           count: 1,
-          totalValue: val
+          totalValue: val,
+          items: [item]
         });
       }
     });
 
-    const result: CategorySummaryItem[] = Array.from(map.values()).map(entry => ({
-      category: entry.category,
-      productCount: entry.count,
-      totalValue: entry.totalValue
-    }));
+    const result: CategorySummaryItem[] = Array.from(map.values()).map(entry => {
+      // Ordena os itens daquela categoria alfabeticamente
+      entry.items.sort((a, b) => a.name.localeCompare(b.name));
+      return {
+        category: entry.category,
+        productCount: entry.count,
+        totalValue: entry.totalValue,
+        items: entry.items
+      };
+    });
 
     result.sort((a, b) => {
       if (b.totalValue !== a.totalValue) return b.totalValue - a.totalValue;
@@ -703,7 +735,7 @@ const App: React.FC = () => {
 
   return (
     <div 
-      className={`min-h-screen flex flex-col pb-32 transition-colors relative ${settings.textSize === 'small' ? 'text-sm' : settings.textSize === 'large' ? 'text-lg' : 'text-base'}`}
+      className={`min-h-screen flex flex-col pb-36 sm:pb-44 transition-colors relative ${settings.textSize === 'small' ? 'text-sm' : settings.textSize === 'large' ? 'text-lg' : 'text-base'}`}
       style={{
         backgroundColor: activeAppTheme.colors.background,
         color: activeAppTheme.colors.text
@@ -737,14 +769,7 @@ const App: React.FC = () => {
 
       <main className="flex-1 px-4 py-2 space-y-4 max-w-lg mx-auto w-full">
         {!isViewMode && (
-          <div 
-            style={{
-              backgroundColor: activeAppTheme.colors.card,
-              borderColor: activeAppTheme.colors.border,
-              color: activeAppTheme.colors.text
-            }}
-            className="p-3 rounded-2xl shadow-sm border mb-2 transition-colors"
-          >
+          <div className="mb-2">
             <div className="flex flex-col gap-2">
               <input
                 ref={inputRef}
@@ -754,21 +779,19 @@ const App: React.FC = () => {
                 onKeyDown={(e) => e.key === 'Enter' && addItem()}
                 placeholder={t.productPlaceholder}
                 style={{
-                  backgroundColor: activeAppTheme.isDark ? 'rgba(15, 23, 42, 0.6)' : '#FFFFFF',
-                  borderColor: activeAppTheme.colors.border,
+                  backgroundColor: activeAppTheme.colors.inputBg,
                   color: activeAppTheme.colors.text
                 }}
-                className="w-full px-4 py-3 rounded-xl border outline-none font-medium transition-all"
+                className="w-full px-4 py-3 rounded-xl border-0 outline-none font-medium transition-all"
               />
               
               <div className="flex gap-2 w-full items-center">
-                {/* Container Qtd e Preço */}
+                {/* Container Qtd e Preço com fundo um tom acima do fundo, sem borda e sem sombra */}
                 <div 
                   style={{
-                    backgroundColor: activeAppTheme.isDark ? 'rgba(15, 23, 42, 0.8)' : '#F9FAFB',
-                    borderColor: activeAppTheme.colors.border
+                    backgroundColor: activeAppTheme.colors.inputBg
                   }}
-                  className="flex flex-1 items-center border rounded-xl overflow-hidden shadow-inner"
+                  className="flex flex-1 items-center rounded-xl overflow-hidden"
                 >
                   <div className="flex items-center flex-1 px-3">
                     <span 
@@ -785,12 +808,12 @@ const App: React.FC = () => {
                       onKeyDown={(e) => e.key === 'Enter' && addItem()}
                       placeholder="1"
                       style={{ color: activeAppTheme.colors.text }}
-                      className="w-full bg-transparent py-3 text-sm font-bold outline-none"
+                      className="w-full bg-transparent py-3 text-sm font-bold outline-none border-0"
                     />
                   </div>
                   <div 
-                    style={{ backgroundColor: activeAppTheme.colors.border }}
-                    className="w-px h-6" 
+                    style={{ backgroundColor: `${activeAppTheme.colors.textSecondary}25` }}
+                    className="w-px h-5" 
                   />
                   <div className="flex items-center flex-[1.5] px-3">
                     <span 
@@ -813,25 +836,23 @@ const App: React.FC = () => {
                       onKeyDown={(e) => e.key === 'Enter' && addItem()}
                       placeholder={t.pricePlaceholder}
                       style={{ color: activeAppTheme.colors.text }}
-                      className="w-full bg-transparent py-3 text-sm font-bold outline-none"
+                      className="w-full bg-transparent py-3 text-sm font-bold outline-none border-0"
                     />
                   </div>
                 </div>
 
-                {/* Botões de Status Rápido */}
+                {/* Botões de Status Rápido e Botão Principal de Adicionar */}
                 <div className="flex gap-2 shrink-0">
                   <button 
                     onClick={handlePurchasedButtonClick}
                     style={isNewItemPurchased ? {
                       backgroundColor: '#16a34a',
-                      borderColor: '#16a34a',
                       color: '#FFFFFF'
                     } : {
-                      backgroundColor: activeAppTheme.colors.card,
-                      borderColor: activeAppTheme.colors.border,
+                      backgroundColor: activeAppTheme.colors.inputBg,
                       color: activeAppTheme.colors.textSecondary
                     }}
-                    className="w-12 h-12 flex items-center justify-center rounded-xl border transition-all active:scale-90"
+                    className="w-12 h-12 flex items-center justify-center rounded-xl border-0 transition-all active:scale-90"
                     aria-label={newItemName.trim() ? t.markExistingAsPurchased : t.addAsPurchased}
                     title={newItemName.trim() ? t.markExistingAsPurchased : t.addAsPurchased}
                   >
@@ -840,14 +861,14 @@ const App: React.FC = () => {
                     </svg>
                   </button>
                   
+                  {/* Botão principal de adicionar: cor primária sólida com ícone branco, sem sombra */}
                   <button 
                     onClick={addItem}
                     style={{ 
                       backgroundColor: activeAppTheme.colors.primary, 
-                      borderColor: activeAppTheme.colors.primary,
-                      color: activeAppTheme.isDark ? '#0F172A' : '#FFFFFF'
+                      color: '#FFFFFF'
                     }}
-                    className="w-12 h-12 flex items-center justify-center rounded-xl border shadow-md transition-all active:scale-90"
+                    className="w-12 h-12 flex items-center justify-center rounded-xl border-0 shadow-none transition-all active:scale-90"
                     aria-label={t.addItem}
                     title={t.addItem}
                   >
@@ -866,18 +887,15 @@ const App: React.FC = () => {
         {isViewMode && (
           <div 
             style={{
-              backgroundColor: activeAppTheme.colors.card,
-              borderColor: activeAppTheme.colors.border,
               color: activeAppTheme.colors.text
             }}
-            className="rounded-2xl p-4 border shadow-sm transition-all animate-in fade-in slide-in-from-top-2 duration-300"
+            className="rounded-2xl p-2 transition-all animate-in fade-in slide-in-from-top-2 duration-300"
           >
             {/* Cabeçalho do Resumo por Categorias (com Total e Botão de Expandir/Recolher) */}
             <div 
               className={`flex items-center justify-between gap-2 transition-all ${
-                isCategorySummaryOpen ? 'pb-3 mb-2.5 border-b' : ''
+                isCategorySummaryOpen ? 'pb-2 mb-2' : ''
               }`}
-              style={{ borderColor: activeAppTheme.colors.border }}
             >
               <button
                 type="button"
@@ -887,20 +905,20 @@ const App: React.FC = () => {
               >
                 <div 
                   className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform group-active:scale-95"
-                  style={{ backgroundColor: `${activeAppTheme.colors.primary}18`, color: activeAppTheme.colors.primary }}
+                  style={{ backgroundColor: activeAppTheme.colors.inputBg, color: activeAppTheme.colors.primary }}
                 >
                   <Shapes className="w-4 h-4" />
                 </div>
                 <h2 
-                  style={{ color: activeAppTheme.colors.text }}
-                  className="text-sm font-bold tracking-tight truncate group-hover:opacity-90"
+                  style={{ color: activeAppTheme.colors.primary }}
+                  className="text-xs font-bold uppercase tracking-wider truncate group-hover:opacity-90"
                 >
                   {t.categorySummary}
                 </h2>
                 {categorySummary.length > 0 && (
                   <span 
                     className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
-                    style={{ backgroundColor: `${activeAppTheme.colors.primary}15`, color: activeAppTheme.colors.primary }}
+                    style={{ backgroundColor: activeAppTheme.colors.inputBg, color: activeAppTheme.colors.primary }}
                   >
                     {categorySummary.length}
                   </span>
@@ -911,9 +929,9 @@ const App: React.FC = () => {
                 {/* Total visível diretamente no cabeçalho quando recolhido */}
                 {!isCategorySummaryOpen && categorySummary.length > 0 && (
                   <span 
-                    className="text-xs font-black font-mono tracking-tight px-2.5 py-1 rounded-lg"
+                    className="text-xs font-extrabold font-mono tracking-tight px-2.5 py-1 rounded-lg"
                     style={{ 
-                      backgroundColor: `${activeAppTheme.colors.primary}12`,
+                      backgroundColor: activeAppTheme.colors.inputBg,
                       color: activeAppTheme.colors.primary 
                     }}
                   >
@@ -925,10 +943,10 @@ const App: React.FC = () => {
                   type="button"
                   onClick={() => setIsCategorySummaryOpen(prev => !prev)}
                   style={{ 
-                    backgroundColor: `${activeAppTheme.colors.primary}15`,
+                    backgroundColor: activeAppTheme.colors.inputBg,
                     color: activeAppTheme.colors.primary
                   }}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 hover:opacity-80 shrink-0"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90 hover:opacity-80 shrink-0 border-0"
                   title={isCategorySummaryOpen ? t.collapseCategorySummary : t.expandCategorySummary}
                   aria-label={isCategorySummaryOpen ? t.collapseCategorySummary : t.expandCategorySummary}
                 >
@@ -954,21 +972,34 @@ const App: React.FC = () => {
                     {categorySummary.map((item) => {
                       const catName = getCategoryDisplayName(item.category, currentLang);
                       const percentage = totalSummaryValue > 0 ? (item.totalValue / totalSummaryValue) * 100 : 0;
+                      const isCatExpanded = !!expandedCategoryIds[item.category.id];
 
                       return (
                         <div 
                           key={item.category.id}
                           className="py-2.5 first:pt-1 last:pb-1 flex flex-col gap-1 transition-colors"
                         >
-                          <div className="flex items-center justify-between gap-2">
+                          <div 
+                            onClick={() => toggleCategoryExpansion(item.category.id)}
+                            className="flex items-center justify-between gap-2 cursor-pointer select-none group"
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded={isCatExpanded}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleCategoryExpansion(item.category.id);
+                              }
+                            }}
+                          >
                             {/* Categoria · Quantidade */}
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-base shrink-0 leading-none" role="img" aria-hidden="true">
+                              <span className="text-base shrink-0 leading-none transition-transform group-active:scale-95" role="img" aria-hidden="true">
                                 {item.category.icon}
                               </span>
                               <span 
                                 style={{ color: activeAppTheme.colors.text }}
-                                className="text-xs font-bold truncate"
+                                className="text-xs font-bold truncate group-hover:opacity-90"
                               >
                                 {catName}
                               </span>
@@ -981,19 +1012,46 @@ const App: React.FC = () => {
                               </span>
                             </div>
 
-                            {/* Valor total gasto alinhado à direita */}
+                            {/* Valor total gasto alinhado à direita + Seta de expansão da categoria */}
                             <div className="flex items-center gap-1.5 shrink-0 ml-2">
                               <span className="text-gray-300 dark:text-slate-600 text-xs select-none">·</span>
-                              <span className="text-xs font-bold font-mono tracking-tight text-gray-900 dark:text-white">
+                              <span 
+                                style={{ color: activeAppTheme.colors.text }}
+                                className="text-xs font-bold font-mono tracking-tight"
+                              >
                                 {settings.currency} {item.totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
+
+                              {/* Seta de expansão que gira ao expandir/recolher */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleCategoryExpansion(item.category.id);
+                                }}
+                                style={{
+                                  color: activeAppTheme.colors.primary,
+                                  backgroundColor: activeAppTheme.colors.inputBg
+                                }}
+                                className="w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-300 ml-0.5 hover:opacity-80 active:scale-90 shrink-0 border-0"
+                                title={isCatExpanded ? t.collapseCategory : t.expandCategory}
+                                aria-label={isCatExpanded ? t.collapseCategory : t.expandCategory}
+                                aria-expanded={isCatExpanded}
+                              >
+                                <ChevronDown 
+                                  className={`w-3.5 h-3.5 transition-transform duration-300 ease-in-out ${
+                                    isCatExpanded ? 'rotate-180' : 'rotate-0'
+                                  }`}
+                                  strokeWidth={2.5}
+                                />
+                              </button>
                             </div>
                           </div>
 
                           {/* Barra de proporção discreta */}
                           {totalSummaryValue > 0 && percentage > 0 && (
                             <div 
-                              style={{ backgroundColor: activeAppTheme.isDark ? 'rgba(51, 65, 85, 0.4)' : '#F3F4F6' }}
+                              style={{ backgroundColor: `${activeAppTheme.colors.textSecondary}15` }}
                               className="w-full h-1 rounded-full overflow-hidden"
                             >
                               <div 
@@ -1006,18 +1064,73 @@ const App: React.FC = () => {
                               />
                             </div>
                           )}
+
+                          {/* Lista dos itens daquela categoria (nome, quantidade e valor) com transição suave e independente */}
+                          <div 
+                            className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+                              isCatExpanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+                            }`}
+                          >
+                            <div className="overflow-hidden">
+                              <div 
+                                className="rounded-xl p-2 space-y-1.5"
+                                style={{
+                                  backgroundColor: activeAppTheme.colors.inputBg
+                                }}
+                              >
+                                {item.items.map(catItem => {
+                                  const itemSubtotal = (catItem.unitPrice || 0) * (catItem.quantity || 1);
+                                  return (
+                                    <div 
+                                      key={catItem.id} 
+                                      className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg transition-colors"
+                                      style={{
+                                        backgroundColor: activeAppTheme.colors.card
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span 
+                                          className="w-1.5 h-1.5 rounded-full shrink-0" 
+                                          style={{ backgroundColor: activeAppTheme.colors.primary }} 
+                                        />
+                                        <span 
+                                          style={{ color: activeAppTheme.colors.text }} 
+                                          className={`text-xs font-bold truncate ${!catItem.isAvailable ? 'line-through opacity-60' : ''}`}
+                                        >
+                                          {catItem.name}
+                                        </span>
+                                        <span 
+                                          style={{ color: activeAppTheme.colors.textSecondary }}
+                                          className="text-[10px] font-semibold shrink-0"
+                                        >
+                                          {catItem.quantity} {t.unitShort}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0 text-right">
+                                        <span 
+                                          style={{ color: activeAppTheme.colors.text }}
+                                          className="font-mono font-bold text-xs text-right"
+                                        >
+                                          {settings.currency} {itemSubtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
 
                     {/* Linha de Totalização elegante e compacta no final da lista */}
                     <div 
-                      style={{ borderColor: activeAppTheme.colors.border }}
-                      className="pt-2.5 mt-1 flex items-center justify-between text-xs font-bold border-t"
+                      className="pt-2 mt-1 flex items-center justify-between text-xs font-bold"
                     >
                       <div className="flex items-center gap-2">
                         <span 
-                          style={{ color: activeAppTheme.colors.textSecondary }}
+                          style={{ color: activeAppTheme.colors.primary }}
                           className="uppercase text-[10px] tracking-wider font-extrabold"
                         >
                           {t.totalLabel}
@@ -1030,10 +1143,10 @@ const App: React.FC = () => {
                           {t.productsLabel(totalSummaryProducts)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2 text-right">
                         <span className="text-gray-300 dark:text-slate-600 text-xs select-none">·</span>
                         <span 
-                          className="text-xs font-extrabold font-mono tracking-tight"
+                          className="text-xs font-extrabold font-mono tracking-tight text-right"
                           style={{ color: activeAppTheme.colors.primary }}
                         >
                           {settings.currency} {totalSummaryValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1066,32 +1179,29 @@ const App: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)} 
                 placeholder={t.searchPlaceholder} 
                 style={{
-                  backgroundColor: activeAppTheme.isDark ? 'rgba(15, 23, 42, 0.6)' : '#FFFFFF',
-                  borderColor: activeAppTheme.colors.border,
+                  backgroundColor: activeAppTheme.colors.inputBg,
                   color: activeAppTheme.colors.text
                 }}
-                className="w-full rounded-xl py-2 pl-10 pr-4 text-xs border outline-none transition-all"
+                className="w-full rounded-xl py-2 pl-10 pr-4 text-xs border-0 outline-none transition-all"
               />
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
 
-            {/* Ícone de filtro/ordenação visível tanto na tela principal (Minha Lista) quanto no Modo Visualização */}
+            {/* Ícone de filtro/ordenação: cantos arredondados, sem borda e sem sombra */}
             <div className="relative shrink-0" ref={sortMenuRef}>
               <button
                 type="button"
                 onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
                 style={isSortMenuOpen ? { 
                   backgroundColor: activeAppTheme.colors.primary, 
-                  borderColor: activeAppTheme.colors.primary,
-                  color: activeAppTheme.isDark ? '#0F172A' : '#FFFFFF'
+                  color: '#FFFFFF'
                 } : {
-                  backgroundColor: activeAppTheme.colors.card,
-                  borderColor: activeAppTheme.colors.border,
+                  backgroundColor: activeAppTheme.colors.inputBg,
                   color: activeAppTheme.colors.text
                 }}
-                className="h-9 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all active:scale-95 text-xs font-bold"
+                className="h-9 px-2.5 rounded-xl border-0 shadow-none flex items-center gap-1.5 transition-all active:scale-95 text-xs font-bold"
                 aria-label={t.sortButtonTitle}
                 title={t.sortButtonTitle}
               >
@@ -1101,22 +1211,20 @@ const App: React.FC = () => {
                 </span>
               </button>
 
-                {/* Dropdown Menu compacto e sem scroll horizontal */}
+                {/* Dropdown Menu compacto sem bordas */}
                 {isSortMenuOpen && (
                   <div 
                     style={{
-                      backgroundColor: activeAppTheme.colors.card,
-                      borderColor: activeAppTheme.colors.border,
+                      backgroundColor: activeAppTheme.colors.inputBg,
                       color: activeAppTheme.colors.text
                     }}
-                    className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl shadow-xl border py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl shadow-xl py-1.5 z-40 border-0 animate-in fade-in zoom-in-95 duration-150"
                   >
                     <div 
-                      style={{ borderColor: activeAppTheme.colors.border }}
-                      className="px-3 py-1.5 border-b flex items-center justify-between"
+                      className="px-3 py-1.5 flex items-center justify-between"
                     >
                       <span 
-                        style={{ color: activeAppTheme.colors.textSecondary }}
+                        style={{ color: activeAppTheme.colors.primary }}
                         className="text-[10px] font-bold uppercase tracking-wider"
                       >
                         {t.sortByLabel}
@@ -1136,8 +1244,8 @@ const App: React.FC = () => {
                               setIsSortMenuOpen(false);
                             }}
                             style={isSelected ? { 
-                              backgroundColor: activeAppTheme.colors.primaryLight, 
-                              color: activeAppTheme.colors.primary 
+                              backgroundColor: activeAppTheme.colors.primary, 
+                              color: '#FFFFFF' 
                             } : {
                               color: activeAppTheme.colors.text
                             }}
@@ -1148,14 +1256,13 @@ const App: React.FC = () => {
                             <div className="flex items-center gap-2.5 truncate">
                               <Icon 
                                 className="w-3.5 h-3.5 shrink-0"
-                                style={isSelected ? { color: activeAppTheme.colors.primary } : undefined}
+                                style={isSelected ? { color: '#FFFFFF' } : undefined}
                               />
                               <span className="truncate">{opt.label}</span>
                             </div>
                             {isSelected && (
                               <Check 
-                                className="w-3.5 h-3.5 shrink-0 ml-1.5" 
-                                style={{ color: activeAppTheme.colors.primary }}
+                                className="w-3.5 h-3.5 shrink-0 ml-1.5 text-white" 
                                 strokeWidth={3} 
                               />
                             )}
@@ -1168,29 +1275,27 @@ const App: React.FC = () => {
               </div>
           </div>
 
+          {/* Lista de Itens: sem cartões brancos, sem bordas, sem sombras, direto sobre o fundo do tema */}
           <div 
             style={{
-              backgroundColor: activeAppTheme.colors.card,
-              borderColor: activeAppTheme.colors.border,
               color: activeAppTheme.colors.text
             }}
-            className="rounded-[2rem] p-4 border shadow-sm min-h-[100px] transition-colors"
+            className="space-y-4 min-h-[100px] transition-colors"
           >
           {filterStatus !== 'all' && (
             <div 
-              style={{ borderColor: activeAppTheme.colors.border }}
-              className="px-2 pb-4 flex justify-between items-center animate-in fade-in slide-in-from-top-1 border-b mb-3"
+              className="px-2 pb-2 flex justify-between items-center animate-in fade-in slide-in-from-top-1 mb-2"
             >
               <span 
-                style={{ color: activeAppTheme.colors.textSecondary }}
-                className="text-[10px] font-bold uppercase"
+                style={{ color: activeAppTheme.colors.primary }}
+                className="text-[10px] font-bold uppercase tracking-wider"
               >
                 {t.filteringBy} {filterStatus === 'pending' ? t.filterAvailable : filterStatus === 'purchased' ? t.filterPurchased : t.filterUnavailable}
               </span>
               <button 
                 onClick={() => setFilterStatus('all')} 
                 style={{ color: activeAppTheme.colors.primary }}
-                className="text-[10px] font-bold uppercase"
+                className="text-[10px] font-bold uppercase tracking-wider"
               >
                 {t.clearFilter}
               </button>
@@ -1202,20 +1307,31 @@ const App: React.FC = () => {
             // Agrupado por Categoria (disponível tanto no Modo Visualização quanto na Minha Lista)
             <>
               {viewModeData.categoryGroups.map((group) => (
-                <div key={group.category.id} className="mb-6 last:mb-0">
-                  <div className="flex items-center justify-between px-1 pb-2 border-b border-gray-50 mb-1">
+                <div key={group.category.id} className="mb-5 last:mb-0">
+                  <div className="flex items-center justify-between px-1 pb-1.5 mb-1">
                     <div className="flex items-center gap-2">
                       <span className="text-base shrink-0 leading-none" role="img" aria-hidden="true">
                         {group.category.icon}
                       </span>
-                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-800 truncate">
+                      {/* Títulos de seção em maiúsculas, na cor primária, com espaçamento entre letras */}
+                      <span 
+                        style={{ color: activeAppTheme.colors.primary }}
+                        className="text-[11px] font-extrabold uppercase tracking-wider truncate"
+                      >
                         {getCategoryDisplayName(group.category, currentLang)}
                       </span>
-                      <span className="text-[10px] bg-gray-100 text-gray-500 font-bold px-1.5 py-0.5 rounded-full shrink-0">
+                      <span 
+                        style={{ backgroundColor: activeAppTheme.colors.inputBg, color: activeAppTheme.colors.textSecondary }}
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                      >
                         {group.items.length}
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-gray-400 shrink-0">
+                    {/* Preço e subtotal alinhados à direita */}
+                    <span 
+                      style={{ color: activeAppTheme.colors.textSecondary }}
+                      className="text-[10px] font-bold shrink-0 text-right"
+                    >
                       {settings.currency} {group.subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -1237,7 +1353,12 @@ const App: React.FC = () => {
               ))}
               {viewModeData.categoryGroups.length === 0 && (
                 <div className="py-12 text-center">
-                  <p className="text-gray-400 text-sm font-medium">{t.noItemsFound}</p>
+                  <p 
+                    style={{ color: activeAppTheme.colors.textSecondary }}
+                    className="text-sm font-medium"
+                  >
+                    {t.noItemsFound}
+                  </p>
                 </div>
               )}
             </>
@@ -1259,7 +1380,12 @@ const App: React.FC = () => {
               ))}
               {viewModeData.items.length === 0 && (
                 <div className="py-12 text-center">
-                  <p className="text-gray-400 text-sm font-medium">{t.noItemsFound}</p>
+                  <p 
+                    style={{ color: activeAppTheme.colors.textSecondary }}
+                    className="text-sm font-medium"
+                  >
+                    {t.noItemsFound}
+                  </p>
                 </div>
               )}
             </>
@@ -1267,10 +1393,13 @@ const App: React.FC = () => {
             // Modo de Edição normal na Minha Lista (seções Para Comprar, No Carrinho, Indisponíveis ordenadas pela opção selecionada)
             <>
               {(Object.entries(defaultSections) as [string, ShoppingItem[]][]).map(([key, list]) => list && list.length > 0 && (
-                <div key={key} className="mb-6 last:mb-0">
-                  <div className="flex items-center gap-2 px-1 pb-2 opacity-70">
-                    <span className={`w-1.5 h-1.5 rounded-full ${key === 'available' ? 'bg-blue-500' : key === 'purchased' ? 'bg-green-500' : 'bg-yellow-400'}`}></span>
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">
+                <div key={key} className="mb-5 last:mb-0">
+                  {/* Títulos de seção em maiúsculas, na cor primária, com espaçamento entre letras */}
+                  <div className="flex items-center gap-2 px-1 pb-1.5">
+                    <span 
+                      style={{ color: activeAppTheme.colors.primary }}
+                      className="text-[11px] font-extrabold uppercase tracking-wider"
+                    >
                       {key === 'available' ? t.toBuy : key === 'purchased' ? t.inCart : t.unavailable}
                     </span>
                   </div>
@@ -1291,7 +1420,12 @@ const App: React.FC = () => {
               ))}
               {(Object.values(defaultSections) as ShoppingItem[][]).every(l => l.length === 0) && (
                 <div className="py-12 text-center">
-                  <p className="text-gray-400 text-sm font-medium">{t.noItemsFound}</p>
+                  <p 
+                    style={{ color: activeAppTheme.colors.textSecondary }}
+                    className="text-sm font-medium"
+                  >
+                    {t.noItemsFound}
+                  </p>
                 </div>
               )}
             </>
@@ -1331,7 +1465,8 @@ const App: React.FC = () => {
             <button
               type="button"
               onClick={handleUndoDelete}
-              className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm flex items-center gap-1"
+              style={{ backgroundColor: activeAppTheme.colors.primary, color: '#FFFFFF' }}
+              className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-none flex items-center gap-1 border-0"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2m0 0l-4-4m4 4l4-4" />
@@ -1345,7 +1480,7 @@ const App: React.FC = () => {
       {/* Toast / Snackbar de Confirmação Geral */}
       {toastMessage && (
         <div className={`fixed ${isKeyboardActive ? 'bottom-4' : 'bottom-24'} left-4 right-4 max-w-sm mx-auto z-50 animate-in slide-in-from-bottom-4 fade-in duration-200 pointer-events-none`}>
-          <div className="bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-center gap-2.5 border border-gray-800">
+          <div className="bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-center gap-2.5 border-0">
             <div className="w-5 h-5 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center shrink-0">
               <Check className="w-3.5 h-3.5" strokeWidth={3} />
             </div>
@@ -1356,85 +1491,110 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Footer Fixo com Total */}
+      {/* Rodapé "Total estimado" sem fundo branco, fixo, com o valor em destaque (28px, peso 800) */}
       <footer 
-        style={{
-          backgroundColor: activeAppTheme.isDark ? `${activeAppTheme.colors.card}F5` : `${activeAppTheme.colors.card}FA`,
-          borderColor: activeAppTheme.colors.border,
-          color: activeAppTheme.colors.text
-        }}
-        className="fixed bottom-0 left-0 right-0 backdrop-blur-md border-t px-6 py-4 flex justify-between items-center z-30 max-w-lg mx-auto transition-colors"
+        className="fixed bottom-0 left-0 right-0 z-30 max-w-lg mx-auto px-4 pb-3 sm:pb-4 pt-1 pointer-events-none bg-transparent"
       >
-        {/* Barra de progresso / indicador de salvamento ocupando a largura total, fina e fixa na borda superior */}
-        {editingItemState.active && (
+        <div 
+          style={{
+            backgroundColor: activeAppTheme.colors.totalCardBg,
+            color: activeAppTheme.colors.totalCardText
+          }}
+          className="relative pointer-events-auto rounded-[1.75rem] sm:rounded-[2rem] p-4 sm:p-5 transition-all duration-300 border-0 shadow-none"
+        >
+          {/* Barra de progresso / indicador de salvamento ocupando a largura total, fina e fixa na borda superior do card */}
+          {editingItemState.active && (
+            <div 
+              className="absolute -top-[1.5px] left-4 right-4 h-[3px] rounded-full overflow-hidden pointer-events-none z-40 transition-opacity duration-200"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.25)'
+              }}
+            >
+              {editingItemState.mode === 'hold' ? (
+                <div 
+                  style={{ backgroundColor: activeAppTheme.colors.totalCardProgressBar }}
+                  className="h-full w-full rounded-full animate-long-press"
+                />
+              ) : (
+                <div 
+                  style={{ backgroundColor: activeAppTheme.colors.totalCardProgressBar }}
+                  className="h-full w-full rounded-full animate-pulse shadow-none"
+                />
+              )}
+            </div>
+          )}
+
+          {/* Linha Superior: "X de Y itens" à esquerda | Valor estimado em destaque (28px, peso 800) à direita */}
+          <div className="flex items-center justify-between gap-3 mb-2.5">
+            {/* Esquerda: "X de Y itens" */}
+            <div className="flex flex-col min-w-0">
+              <span 
+                style={{ color: activeAppTheme.colors.totalCardText }}
+                className="text-xs sm:text-sm font-semibold tracking-tight truncate"
+              >
+                {t.itemsCountRatio(purchasedItemsCount, totalAvailableItemsCount)}
+              </span>
+
+              {/* Indicador de Orçamento quando ativo */}
+              {settings.isBudgetModeActive && (
+                <span 
+                  style={{ color: budgetExceeded ? '#FCA5A5' : activeAppTheme.colors.totalCardSubtext }}
+                  className="text-[10px] font-medium tracking-tight mt-0.5 truncate flex items-center gap-1"
+                >
+                  {budgetExceeded ? (
+                    <span className="font-bold flex items-center gap-1">
+                      ⚠️ {t.overLimit} {settings.currency} {(totalValue - settings.budgetLimit).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  ) : (
+                    <span>
+                      {t.budgetLimit}: {settings.currency} {settings.budgetLimit.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+
+            {/* Direita: Valor estimado em destaque (28px, peso 800) e alinhado à direita */}
+            <div className="flex items-baseline gap-1.5 shrink-0 text-right">
+              <span 
+                style={{ color: activeAppTheme.colors.totalCardText }}
+                className="text-[28px] font-[800] font-mono leading-none tracking-tight text-right"
+              >
+                {settings.currency} {totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span 
+                style={{ color: activeAppTheme.colors.totalCardSubtext }}
+                className="text-xs sm:text-xs font-normal opacity-90 lowercase"
+              >
+                {t.estimatedSuffix}
+              </span>
+            </div>
+          </div>
+
+          {/* Barra de progresso fina e arredondada (trilho translúcido + preenchimento em cor de destaque) */}
           <div 
-            className="absolute -top-[1.5px] left-0 right-0 h-[2.5px] overflow-hidden pointer-events-none z-40 transition-opacity duration-200"
-            style={{
-              backgroundColor: `${activeAppTheme.colors.primary}25`
-            }}
+            style={{ backgroundColor: activeAppTheme.colors.totalCardProgressTrack }}
+            className="w-full h-1.5 sm:h-2 rounded-full overflow-hidden"
           >
-            {editingItemState.mode === 'hold' ? (
-              <div 
-                style={{ backgroundColor: activeAppTheme.colors.primary }}
-                className="h-full w-full rounded-full animate-long-press"
-              />
-            ) : (
-              <div 
-                style={{ backgroundColor: activeAppTheme.colors.primary }}
-                className="h-full w-full rounded-full animate-pulse shadow-sm"
-              />
-            )}
+            <div 
+              style={{ 
+                width: `${purchaseProgressPercentage}%`,
+                backgroundColor: activeAppTheme.colors.totalCardProgressBar 
+              }}
+              className="h-full rounded-full transition-all duration-500 ease-out shadow-none"
+            />
           </div>
-        )}
-
-        <div>
-          <span 
-            style={{ color: activeAppTheme.colors.textSecondary }}
-            className="text-[10px] font-bold uppercase tracking-widest block"
-          >
-            {t.estimatedTotal}
-          </span>
-          <span 
-            style={{ color: activeAppTheme.colors.text }}
-            className="text-xl font-black"
-          >
-            {settings.currency} {totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
         </div>
-
-        {settings.isBudgetModeActive && (
-          <div className="text-right">
-            <span 
-              style={{ color: activeAppTheme.colors.textSecondary }}
-              className="text-[10px] font-bold uppercase tracking-widest block"
-            >
-              {t.budgetLimit}
-            </span>
-            <span 
-              style={{ color: budgetExceeded ? '#ef4444' : activeAppTheme.colors.text }}
-              className={`text-sm font-bold ${budgetExceeded ? 'font-black' : ''}`}
-            >
-              {settings.currency} {settings.budgetLimit.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            {budgetExceeded && (
-              <div className="text-[9px] font-black text-red-500 uppercase tracking-tighter animate-pulse flex items-center justify-end gap-1 mt-0.5">
-                <span className="font-medium">{t.overLimit}</span>
-                <span className="font-bold">{settings.currency} {(totalValue - settings.budgetLimit).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-            )}
-          </div>
-        )}
       </footer>
 
       {showScrollTop && !isKeyboardActive && (
         <button
           onClick={scrollToTop}
           style={{ 
-            backgroundColor: activeAppTheme.colors.card, 
-            borderColor: activeAppTheme.colors.border,
+            backgroundColor: activeAppTheme.colors.inputBg, 
             color: activeAppTheme.colors.primary 
           }}
-          className="fixed bottom-28 right-6 z-40 p-2.5 rounded-full shadow-xl border transition-all animate-in fade-in zoom-in duration-300 active:scale-90"
+          className="fixed bottom-32 sm:bottom-36 right-6 z-40 p-2.5 rounded-full border-0 transition-all animate-in fade-in zoom-in duration-300 active:scale-90"
           aria-label={t.backToTop}
           title={t.backToTop}
         >
@@ -1449,6 +1609,7 @@ const App: React.FC = () => {
           onClose={() => setShowSettings(false)} 
           onAddItemToList={handleAddItemFromSettings}
           onAddMultipleItemsToList={handleAddMultipleItemsFromSettings}
+          currentItems={items}
         />
       )}
       {showExportModal && (
@@ -1457,6 +1618,7 @@ const App: React.FC = () => {
           onSaveHistory={saveToHistory}
           onClose={() => setShowExportModal(false)} 
           lang={currentLang}
+          themeConfig={activeAppTheme}
         />
       )}
 
@@ -1465,31 +1627,54 @@ const App: React.FC = () => {
       {showClearConfirm && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center animate-in fade-in">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)} />
-          <div className="relative bg-white w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300">
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 sm:hidden" onClick={() => setShowClearConfirm(false)} />
-            <h2 className="text-xl font-bold mb-8 text-center text-gray-900">{t.clearListTitle}</h2>
+          <div 
+            style={{
+              backgroundColor: activeAppTheme.colors.card,
+              color: activeAppTheme.colors.text
+            }}
+            className="relative w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300 border-0"
+          >
+            <div className="w-12 h-1.5 bg-gray-300/40 rounded-full mx-auto mb-6 sm:hidden" onClick={() => setShowClearConfirm(false)} />
+            <h2 
+              style={{ color: activeAppTheme.colors.primary }}
+              className="text-base font-bold uppercase tracking-wider mb-6 text-center"
+            >
+              {t.clearListTitle}
+            </h2>
             <div className="space-y-3">
               <button 
                 onClick={() => clearList('purchased')} 
-                className="w-full py-4 bg-green-50 text-green-700 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: activeAppTheme.colors.inputBg,
+                  color: activeAppTheme.colors.text
+                }}
+                className="w-full py-3.5 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2 border-0"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 {t.removePurchased}
               </button>
               <button 
                 onClick={() => clearList('unavailable')} 
-                className="w-full py-4 bg-amber-50 text-amber-700 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: activeAppTheme.colors.inputBg,
+                  color: activeAppTheme.colors.text
+                }}
+                className="w-full py-3.5 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2 border-0"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                 </svg>
                 {t.removeUnavailable}
               </button>
               <button 
                 onClick={() => clearList('all')} 
-                className="w-full py-4 bg-red-50 text-red-700 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: activeAppTheme.colors.deleteBg,
+                  color: activeAppTheme.colors.deleteText
+                }}
+                className="w-full py-3.5 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2 border-0"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1498,7 +1683,8 @@ const App: React.FC = () => {
               </button>
               <button 
                 onClick={() => setShowClearConfirm(false)} 
-                className="w-full py-4 text-gray-400 font-bold"
+                style={{ color: activeAppTheme.colors.textSecondary }}
+                className="w-full py-3 font-bold text-xs"
               >
                 {t.cancel}
               </button>

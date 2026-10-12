@@ -390,14 +390,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     return (
       <div 
         style={{
-          borderColor: currentAppTheme.colors.border,
           backgroundColor: !item.isAvailable 
             ? (isDarkCard ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0, 0, 0, 0.02)') 
             : undefined
         }}
-        className={`flex items-center py-3.5 px-3 transition-all border-b last:border-0 ${
-          isDarkCard ? 'border-slate-700/60' : 'border-gray-100'
-        } ${!item.isAvailable ? (isDarkCard ? 'bg-slate-900/40' : 'bg-gray-50/50') : ''}`}
+        className={`flex items-center py-2.5 px-3 border-0 transition-all ${!item.isAvailable ? (isDarkCard ? 'bg-slate-900/40' : 'bg-gray-50/50') : ''}`}
       >
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center gap-2">
@@ -416,7 +413,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 backgroundColor: currentAppTheme.colors.chipAvailableBg,
                 color: currentAppTheme.colors.chipAvailableText
               } : undefined}
-              className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter shrink-0 ${
+              className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter shrink-0 shadow-none ${
                 !item.isAvailable ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
               }`}
             >
@@ -430,7 +427,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   backgroundColor: currentAppTheme.colors.chipPurchasedBg,
                   color: currentAppTheme.colors.chipPurchasedText
                 }}
-                className="text-[8px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase"
+                className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase shadow-none"
               >
                 {t.purchasedBadge}
               </span>
@@ -441,20 +438,23 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   backgroundColor: currentAppTheme.colors.chipUnavailableBg,
                   color: currentAppTheme.colors.chipUnavailableText
                 }}
-                className="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase"
+                className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase shadow-none"
               >
                 {t.unavailableBadge}
               </span>
             )}
             {associatedMarket && (
-              <span className="text-[8px] text-gray-500 font-bold bg-gray-100 px-1.5 py-0.5 rounded-md tracking-tight">
+              <span 
+                style={{ backgroundColor: currentAppTheme.colors.inputBg, color: currentAppTheme.colors.textSecondary }}
+                className="text-[8px] font-bold px-1.5 py-0.5 rounded-md tracking-tight shadow-none"
+              >
                 {associatedMarket.name}
               </span>
             )}
           </div>
         </div>
 
-        <div className="flex flex-col items-end shrink-0">
+        <div className="flex flex-col items-end shrink-0 text-right">
           <span 
             style={{
               color: !item.isAvailable ? currentAppTheme.colors.textSecondary : currentAppTheme.colors.text
@@ -465,7 +465,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </span>
           <span 
             style={{ color: currentAppTheme.colors.textSecondary }}
-            className="text-[9px] text-gray-400 font-medium"
+            className="text-[9px] font-medium"
           >
             {t.subtotal} {currency} {subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
@@ -476,8 +476,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   return (
     <div 
-      style={{ borderColor: currentAppTheme.colors.border }}
-      className="relative overflow-hidden border-b border-gray-100 last:border-0 item-card select-none"
+      className="relative overflow-hidden item-card select-none py-1"
     >
       {/* Indicador visual de Long Press (~1s) */}
       {isLongPressing && (
@@ -542,9 +541,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           <div className="relative mr-3 shrink-0">
             <button 
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
-                isMenuOpen ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-              }`}
+              style={isMenuOpen ? {
+                backgroundColor: currentAppTheme.colors.primary,
+                color: '#FFFFFF'
+              } : {
+                backgroundColor: currentAppTheme.colors.inputBg,
+                color: currentAppTheme.colors.textSecondary
+              }}
+              className="w-9 h-9 flex items-center justify-center rounded-xl border-0 transition-all active:scale-90"
               aria-label={t.itemOptions}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -567,15 +571,24 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             <div 
               ref={menuRef}
               data-action-menu="true"
-              className={`absolute ${settings.isSwipeEnabled ? 'left-2' : 'left-12'} top-1/2 -translate-y-1/2 z-[40] flex items-center gap-1.5 bg-white border border-gray-100 shadow-2xl rounded-2xl p-1.5 animate-in fade-in zoom-in-95 duration-200`}
+              style={{
+                backgroundColor: currentAppTheme.colors.inputBg,
+                color: currentAppTheme.colors.text
+              }}
+              className={`absolute ${settings.isSwipeEnabled ? 'left-2' : 'left-12'} top-1/2 -translate-y-1/2 z-[40] flex items-center gap-1.5 shadow-2xl rounded-2xl p-1.5 border-0 animate-in fade-in zoom-in-95 duration-200`}
               onClick={(e) => e.stopPropagation()}
             >
               <button 
                 onClick={() => handleAction(() => onUpdate({ isPurchased: !item.isPurchased }))}
                 title={item.isPurchased ? t.markToBuy : t.markPurchased}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
-                  item.isPurchased && item.isAvailable ? 'bg-green-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-                }`}
+                style={item.isPurchased && item.isAvailable ? {
+                  backgroundColor: '#16a34a',
+                  color: '#FFFFFF'
+                } : {
+                  backgroundColor: currentAppTheme.colors.card,
+                  color: currentAppTheme.colors.textSecondary
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border-0 transition-all active:scale-90"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -584,7 +597,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               <button 
                 onClick={startEditing}
                 title={t.editName}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-gray-400 hover:bg-blue-50 hover:text-blue-600 active:bg-blue-50 active:text-blue-600 transition-all active:scale-90"
+                style={{
+                  backgroundColor: currentAppTheme.colors.card,
+                  color: currentAppTheme.colors.textSecondary
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border-0 transition-all active:scale-90 hover:opacity-80"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -593,9 +610,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               <button 
                 onClick={() => handleAction(() => onUpdate({ isAvailable: !item.isAvailable }))}
                 title={!item.isAvailable ? t.markAvailable : t.markUnavailable}
-                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
-                  !item.isAvailable ? 'bg-yellow-400 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-                }`}
+                style={!item.isAvailable ? {
+                  backgroundColor: '#EAB308',
+                  color: '#FFFFFF'
+                } : {
+                  backgroundColor: currentAppTheme.colors.card,
+                  color: currentAppTheme.colors.textSecondary
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border-0 transition-all active:scale-90"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -609,20 +631,30 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                     setShowMarketPicker(true);
                   }}
                   title="Definir mercado"
-                  className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
-                    associatedMarket ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-                  }`}
+                  style={associatedMarket ? {
+                    backgroundColor: currentAppTheme.colors.primary,
+                    color: '#FFFFFF'
+                  } : {
+                    backgroundColor: currentAppTheme.colors.card,
+                    color: currentAppTheme.colors.textSecondary
+                  }}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl border-0 transition-all active:scale-90"
                 >
                   <Store className="w-5 h-5" strokeWidth={2} />
                 </button>
               )}
+              {/* Botão de excluir: fundo vermelho bem claro com ícone vermelho */}
               <button 
                 onClick={() => {
                   setIsMenuOpen(false);
                   setShowDeleteConfirm(true);
                 }}
                 title={t.deleteItem}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-all active:scale-90"
+                style={{
+                  backgroundColor: currentAppTheme.colors.deleteBg,
+                  color: currentAppTheme.colors.deleteText
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-xl border-0 transition-all active:scale-90 hover:opacity-90"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -634,31 +666,29 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
         <div className="flex flex-col flex-1 pr-2 min-w-0">
           <div className="flex items-center">
+            {/* Controle − 1 + dos itens: fundo um tom acima do fundo da tela, cantos arredondados, sem borda */}
             <div 
               style={{
-                backgroundColor: currentAppTheme.isDark ? 'rgba(15, 23, 42, 0.8)' : '#F9FAFB',
-                borderColor: currentAppTheme.colors.border
+                backgroundColor: currentAppTheme.colors.inputBg
               }}
-              className={`flex items-center rounded-lg p-0.5 border mr-2 shrink-0 ${
-                isDarkCard ? 'bg-slate-900/80 border-slate-700' : 'bg-gray-50 border-gray-100'
-              }`}
+              className="flex items-center rounded-xl p-0.5 border-0 mr-2 shrink-0"
             >
               <button 
                 onClick={() => onUpdate({ quantity: Math.max(1, item.quantity - 1) })}
-                className="w-7 h-7 flex items-center justify-center font-bold active:scale-95 rounded-md transition-colors text-xs"
+                className="w-7 h-7 flex items-center justify-center font-bold active:scale-95 rounded-lg transition-colors text-xs border-0"
                 style={{ color: currentAppTheme.colors.primary }}
               >
                 −
               </button>
               <span 
                 style={{ color: currentAppTheme.colors.text }}
-                className={`w-6 text-center font-bold text-[11px] ${isDarkCard ? 'text-slate-100' : 'text-gray-700'}`}
+                className="w-6 text-center font-bold text-[11px]"
               >
                 {item.quantity}
               </span>
               <button 
                 onClick={() => onUpdate({ quantity: item.quantity + 1 })}
-                className="w-7 h-7 flex items-center justify-center font-bold active:scale-95 rounded-md transition-colors text-xs"
+                className="w-7 h-7 flex items-center justify-center font-bold active:scale-95 rounded-lg transition-colors text-xs border-0"
                 style={{ color: currentAppTheme.colors.primary }}
               >
                 +
@@ -675,11 +705,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   onChange={(e) => setEditNameValue(e.target.value)}
                   onBlur={saveName}
                   onKeyDown={(e) => e.key === 'Enter' && saveName()}
-                  className={`w-full border rounded-md px-1 py-0.5 font-bold outline-none ${
-                    isDarkCard 
-                      ? 'bg-slate-900 border-slate-600 text-white' 
-                      : 'bg-blue-50 border-blue-200 text-gray-800'
-                  } ${textSizeClass}`}
+                  style={{
+                    backgroundColor: currentAppTheme.colors.inputBg,
+                    color: currentAppTheme.colors.text
+                  }}
+                  className={`w-full border-0 rounded-xl px-2 py-1 font-bold outline-none ${textSizeClass}`}
                 />
               ) : (
                 <div 
@@ -691,15 +721,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   onContextMenu={(e) => e.preventDefault()}
                   style={{ WebkitTouchCallout: 'none' }}
                   className={`relative inline-flex flex-col max-w-full cursor-pointer select-none rounded-md px-1 -mx-1 py-0.5 transition-all ${
-                    isHoldingName ? 'bg-blue-50/90 scale-[0.98]' : 'active:opacity-80'
+                    isHoldingName ? 'opacity-70 scale-[0.98]' : 'active:opacity-80'
                   }`}
                   title={t.holdToEditTitle}
                 >
                   <span 
+                    style={{ color: !item.isAvailable ? currentAppTheme.colors.textSecondary : currentAppTheme.colors.text }}
                     className={`font-bold truncate ${textSizeClass} ${
-                      !item.isAvailable 
-                        ? 'line-through text-gray-400' 
-                        : isDarkCard ? 'text-slate-100' : 'text-gray-800'
+                      !item.isAvailable ? 'line-through opacity-60' : ''
                     }`}
                   >
                     {item.name}
@@ -708,14 +737,27 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               )}
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 {item.isPurchased && item.isAvailable && (
-                  <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight">{t.purchasedBadge}</span>
+                  <span 
+                    style={{ backgroundColor: currentAppTheme.colors.chipPurchasedBg, color: currentAppTheme.colors.chipPurchasedText }}
+                    className="text-[9px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight"
+                  >
+                    {t.purchasedBadge}
+                  </span>
                 )}
                 {!item.isAvailable && (
-                  <span className="text-[9px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight">{t.unavailableBadge}</span>
+                  <span 
+                    style={{ backgroundColor: currentAppTheme.colors.chipUnavailableBg, color: currentAppTheme.colors.chipUnavailableText }}
+                    className="text-[9px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight"
+                  >
+                    {t.unavailableBadge}
+                  </span>
                 )}
                 {associatedMarket && (
-                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-1 tracking-tight bg-gray-100 text-gray-600">
-                    <Store className="w-2.5 h-2.5 text-gray-400" />
+                  <span 
+                    style={{ backgroundColor: currentAppTheme.colors.inputBg, color: currentAppTheme.colors.textSecondary }}
+                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-1 tracking-tight"
+                  >
+                    <Store className="w-2.5 h-2.5 opacity-60" />
                     {associatedMarket.name}
                   </span>
                 )}
@@ -724,10 +766,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           </div>
         </div>
 
-
-        <div className="flex flex-col items-end shrink-0 ml-1">
+        {/* Preço e subtotal alinhados à direita */}
+        <div className="flex flex-col items-end shrink-0 ml-1 text-right">
           <div className="flex items-center justify-end gap-1">
-            <span className="text-gray-400 text-[9px] font-medium">{currency}</span>
+            <span style={{ color: currentAppTheme.colors.textSecondary }} className="text-[9px] font-medium">{currency}</span>
             <input
               type="text"
               inputMode="decimal"
@@ -739,14 +781,15 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 notifyEditing(false);
               }}
               placeholder={t.pricePlaceholder}
-              className={`w-16 bg-transparent border-none text-right font-bold transition-colors focus:ring-0 p-0 outline-none ${
-                item.isPurchased && item.isAvailable ? 'text-green-600' : isDarkCard ? 'text-slate-100' : 'text-gray-900'
-              } ${textSizeClass}`}
+              style={{
+                color: item.isPurchased && item.isAvailable ? '#16a34a' : currentAppTheme.colors.text
+              }}
+              className={`w-16 bg-transparent border-none text-right font-bold transition-colors focus:ring-0 p-0 outline-none ${textSizeClass}`}
             />
           </div>
-          <div className="text-[9px] text-gray-400 mt-0.5 flex items-center gap-1">
+          <div style={{ color: currentAppTheme.colors.textSecondary }} className="text-[9px] mt-0.5 flex items-center gap-1 text-right justify-end">
             <span>{t.subtotal}</span>
-            <span className="font-bold">
+            <span style={{ color: currentAppTheme.colors.text }} className="font-bold text-right">
               {currency} {subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
@@ -763,23 +806,46 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           }}
         >
           <div 
-            className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-150 text-center"
+            style={{
+              backgroundColor: currentAppTheme.colors.card,
+              color: currentAppTheme.colors.text
+            }}
+            className="rounded-2xl p-5 max-w-xs w-full shadow-2xl border-0 animate-in zoom-in-95 duration-150 text-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-3">
+            {/* Botão de excluir: fundo vermelho bem claro com ícone vermelho */}
+            <div 
+              style={{
+                backgroundColor: currentAppTheme.colors.deleteBg,
+                color: currentAppTheme.colors.deleteText
+              }}
+              className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
-            <h3 className="font-bold text-gray-900 text-base mb-1">{t.deleteConfirmTitle}</h3>
-            <p className="text-xs text-gray-500 mb-5 leading-relaxed">
+            <h3 
+              style={{ color: currentAppTheme.colors.text }}
+              className="font-bold text-base mb-1"
+            >
+              {t.deleteConfirmTitle}
+            </h3>
+            <p 
+              style={{ color: currentAppTheme.colors.textSecondary }}
+              className="text-xs mb-5 leading-relaxed"
+            >
               {t.deleteConfirmDesc(item.name)}
             </p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 active:scale-95 transition-all"
+                style={{
+                  backgroundColor: currentAppTheme.colors.inputBg,
+                  color: currentAppTheme.colors.textSecondary
+                }}
+                className="flex-1 py-2.5 px-3 rounded-xl border-0 text-xs font-bold active:scale-95 transition-all"
               >
                 {t.cancel}
               </button>
@@ -789,7 +855,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   setShowDeleteConfirm(false);
                   onDelete();
                 }}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-red-600 text-white text-xs font-bold shadow-md shadow-red-200 hover:bg-red-700 active:scale-95 transition-all"
+                style={{
+                  backgroundColor: currentAppTheme.colors.deleteText,
+                  color: '#FFFFFF'
+                }}
+                className="flex-1 py-2.5 px-3 rounded-xl border-0 text-xs font-bold shadow-none active:scale-95 transition-all"
               >
                 {t.deleteConfirmAction}
               </button>
@@ -810,23 +880,37 @@ export const ItemCard: React.FC<ItemCardProps> = ({
           <div 
             ref={marketPickerRef}
             data-action-menu="true"
-            className="bg-white rounded-2xl p-4 max-w-xs w-full shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-150 text-left"
+            style={{
+              backgroundColor: currentAppTheme.colors.card,
+              color: currentAppTheme.colors.text
+            }}
+            className="rounded-2xl p-4 max-w-xs w-full shadow-2xl border-0 animate-in zoom-in-95 duration-150 text-left"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between pb-2 mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <div 
+                  style={{
+                    backgroundColor: currentAppTheme.colors.inputBg,
+                    color: currentAppTheme.colors.primary
+                  }}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center"
+                >
                   <Store className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-gray-900 text-xs">Escolher mercado</h4>
-                  <p className="text-[10px] text-gray-400 truncate max-w-[170px]">{item.name}</p>
+                  <h4 style={{ color: currentAppTheme.colors.text }} className="font-bold text-xs">Escolher mercado</h4>
+                  <p style={{ color: currentAppTheme.colors.textSecondary }} className="text-[10px] truncate max-w-[170px]">{item.name}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowMarketPicker(false)}
-                className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 active:scale-90 transition-all"
+                style={{
+                  backgroundColor: currentAppTheme.colors.inputBg,
+                  color: currentAppTheme.colors.textSecondary
+                }}
+                className="w-6 h-6 flex items-center justify-center rounded-lg active:scale-90 transition-all border-0"
                 aria-label="Fechar"
               >
                 <X className="w-3.5 h-3.5" />
@@ -843,14 +927,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                         key={market.id}
                         type="button"
                         onClick={() => applyMarket(market.id, marketPickerStatus)}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.98] ${
-                          isSelected 
-                            ? 'bg-indigo-50 text-indigo-900 border border-indigo-200 shadow-xs' 
-                            : 'bg-gray-50/80 hover:bg-gray-100 text-gray-700 border border-transparent'
-                        }`}
+                        style={isSelected ? {
+                          backgroundColor: currentAppTheme.colors.primary,
+                          color: '#FFFFFF'
+                        } : {
+                          backgroundColor: currentAppTheme.colors.inputBg,
+                          color: currentAppTheme.colors.text
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-[0.98] border-0"
                       >
                         <span className="truncate">{market.name}</span>
-                        {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0" strokeWidth={2.5} />}
+                        {isSelected && <Check className="w-4 h-4 text-white shrink-0" strokeWidth={2.5} />}
                       </button>
                     );
                   })}
@@ -859,21 +946,24 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                     <button
                       type="button"
                       onClick={() => applyMarket(undefined, marketPickerStatus)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.98] ${
-                        !item.marketId 
-                          ? 'bg-gray-100 text-gray-800 font-bold border border-gray-200' 
-                          : 'text-gray-500 hover:bg-gray-50 border border-transparent'
-                      }`}
+                      style={!item.marketId ? {
+                        backgroundColor: currentAppTheme.colors.primary,
+                        color: '#FFFFFF'
+                      } : {
+                        backgroundColor: currentAppTheme.colors.inputBg,
+                        color: currentAppTheme.colors.textSecondary
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.98] border-0"
                     >
                       <span>Sem mercado</span>
-                      {!item.marketId && <Check className="w-3.5 h-3.5 text-gray-600 shrink-0" strokeWidth={2} />}
+                      {!item.marketId && <Check className="w-3.5 h-3.5 text-white shrink-0" strokeWidth={2} />}
                     </button>
                   </div>
                 </div>
 
-                {/* Único seletor de Estado */}
-                <div className="pt-3 mt-3 border-t border-gray-100">
-                  <label htmlFor="item-status-select" className="block text-[11px] font-bold text-gray-500 mb-1.5">
+                {/* Seletor de Estado */}
+                <div className="pt-3 mt-3">
+                  <label htmlFor="item-status-select" style={{ color: currentAppTheme.colors.primary }} className="block text-[11px] font-bold uppercase tracking-wider mb-1.5">
                     Estado:
                   </label>
 
@@ -882,13 +972,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       id="item-status-select"
                       value={marketPickerStatus}
                       onChange={(e) => setMarketPickerStatus(e.target.value as 'pending' | 'purchased' | 'unavailable')}
-                      className="w-full appearance-none bg-gray-50 hover:bg-gray-100/80 border border-gray-200 text-gray-800 text-xs font-bold py-2.5 pl-3.5 pr-9 rounded-xl outline-none focus:border-indigo-500 focus:bg-white focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer"
+                      style={{
+                        backgroundColor: currentAppTheme.colors.inputBg,
+                        color: currentAppTheme.colors.text
+                      }}
+                      className="w-full appearance-none text-xs font-bold py-2.5 pl-3.5 pr-9 rounded-xl outline-none border-0 transition-all cursor-pointer"
                     >
                       <option value="pending">Para Comprar</option>
                       <option value="purchased">Comprado</option>
                       <option value="unavailable">Indisponível</option>
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3" style={{ color: currentAppTheme.colors.textSecondary }}>
                       <ChevronDown className="w-4 h-4" />
                     </div>
                   </div>
@@ -896,7 +990,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                   <button
                     type="button"
                     onClick={() => applyMarket(item.marketId, marketPickerStatus)}
-                    className="w-full mt-2.5 py-2 px-3 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-sm"
+                    style={{
+                      backgroundColor: currentAppTheme.colors.primary,
+                      color: '#FFFFFF'
+                    }}
+                    className="w-full mt-2.5 py-2 px-3 text-xs font-bold rounded-xl active:scale-95 transition-all border-0 shadow-none"
                   >
                     Confirmar
                   </button>
@@ -904,7 +1002,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               </>
             ) : (
               <div className="text-center py-2">
-                <p className="text-xs text-gray-500 font-medium mb-3">
+                <p style={{ color: currentAppTheme.colors.textSecondary }} className="text-xs font-medium mb-3">
                   Você ainda não cadastrou nenhum mercado.
                 </p>
                 <button
@@ -915,13 +1013,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       onOpenSettingsMarkets();
                     }
                   }}
-                  className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-sm"
+                  style={{
+                    backgroundColor: currentAppTheme.colors.primary,
+                    color: '#FFFFFF'
+                  }}
+                  className="w-full py-2.5 px-3 text-xs font-bold rounded-xl active:scale-95 transition-all border-0 shadow-none"
                 >
                   Configurar mercados
                 </button>
 
-                <div className="pt-3 mt-3 border-t border-gray-100">
-                  <label htmlFor="item-status-select-empty" className="block text-[11px] font-bold text-gray-500 mb-1.5 text-left">
+                <div className="pt-3 mt-3">
+                  <label htmlFor="item-status-select-empty" style={{ color: currentAppTheme.colors.primary }} className="block text-[11px] font-bold uppercase tracking-wider mb-1.5 text-left">
                     Estado:
                   </label>
                   <div className="relative">
@@ -929,20 +1031,28 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                       id="item-status-select-empty"
                       value={marketPickerStatus}
                       onChange={(e) => setMarketPickerStatus(e.target.value as 'pending' | 'purchased' | 'unavailable')}
-                      className="w-full appearance-none bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold py-2.5 pl-3.5 pr-9 rounded-xl outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
+                      style={{
+                        backgroundColor: currentAppTheme.colors.inputBg,
+                        color: currentAppTheme.colors.text
+                      }}
+                      className="w-full appearance-none text-xs font-bold py-2.5 pl-3.5 pr-9 rounded-xl outline-none border-0 transition-all cursor-pointer"
                     >
                       <option value="pending">Para Comprar</option>
                       <option value="purchased">Comprado</option>
                       <option value="unavailable">Indisponível</option>
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3" style={{ color: currentAppTheme.colors.textSecondary }}>
                       <ChevronDown className="w-4 h-4" />
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => applyMarket(item.marketId, marketPickerStatus)}
-                    className="w-full mt-2.5 py-2 px-3 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-sm"
+                    style={{
+                      backgroundColor: currentAppTheme.colors.primary,
+                      color: '#FFFFFF'
+                    }}
+                    className="w-full mt-2.5 py-2 px-3 text-xs font-bold rounded-xl active:scale-95 transition-all border-0 shadow-none"
                   >
                     Confirmar
                   </button>

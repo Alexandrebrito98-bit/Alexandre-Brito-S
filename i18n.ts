@@ -55,6 +55,8 @@ export const translations = {
     
     // Footer
     estimatedTotal: 'Total Estimado',
+    itemsCountRatio: (purchased: number, total: number) => `${purchased} de ${total} ${total === 1 ? 'item' : 'itens'}`,
+    estimatedSuffix: 'estimado',
     budgetLimit: 'Orçamento Limite',
     overLimit: 'Acima do limite:',
 
@@ -144,6 +146,9 @@ export const translations = {
     top5Rank: 'Top 5',
     top10Rank: 'Top 10',
     noMostPurchased: 'Nenhum registro de compras no histórico ainda.',
+    noMostPurchasedDesc: 'Ao marcar produtos como "comprado" na lista ao longo do tempo, eles aparecerão aqui automaticamente no ranking!',
+    expandCategory: 'Expandir itens da categoria',
+    collapseCategory: 'Recolher itens da categoria',
     purchasedStats: (times: number, qty: number) => `Comprado ${times}x • ${qty} un.`,
 
     // Export Modal
@@ -226,6 +231,8 @@ export const translations = {
     
     // Footer
     estimatedTotal: 'Estimated Total',
+    itemsCountRatio: (purchased: number, total: number) => `${purchased} of ${total} ${total === 1 ? 'item' : 'items'}`,
+    estimatedSuffix: 'estimated',
     budgetLimit: 'Budget Limit',
     overLimit: 'Over limit:',
 
@@ -315,6 +322,9 @@ export const translations = {
     top5Rank: 'Top 5',
     top10Rank: 'Top 10',
     noMostPurchased: 'No purchase records in history yet.',
+    noMostPurchasedDesc: 'When you mark products as "purchased" on your shopping list over time, they will appear here in the ranking automatically!',
+    expandCategory: 'Expand category items',
+    collapseCategory: 'Collapse category items',
     purchasedStats: (times: number, qty: number) => `Purchased ${times}x • ${qty} pcs`,
 
     // Export Modal

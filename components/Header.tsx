@@ -45,19 +45,18 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header 
       style={themeConfig ? {
-        backgroundColor: themeConfig.colors.card,
-        borderColor: themeConfig.colors.border,
+        backgroundColor: themeConfig.colors.background,
         color: themeConfig.colors.text
       } : undefined}
-      className={`${!themeConfig && isDarkTheme ? 'bg-[#131b2e] border-white/10 text-white' : !themeConfig ? 'bg-white border-gray-100 text-gray-900' : ''} px-6 pt-6 pb-4 border-b flex flex-col gap-4 transition-colors`}
+      className="px-6 pt-6 pb-3 flex flex-col gap-4 transition-colors"
     >
       <div className="flex justify-between items-center gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2 sm:gap-2.5 truncate min-w-0">
-            <AppLogo className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shadow-sm shrink-0" />
+            <AppLogo className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0" />
             <span 
-              className="truncate leading-tight"
-              style={themeConfig ? { color: themeConfig.colors.text } : undefined}
+              className={`truncate leading-tight ${isViewMode ? 'uppercase tracking-wider font-extrabold' : ''}`}
+              style={themeConfig ? { color: isViewMode ? themeConfig.colors.primary : themeConfig.colors.text } : undefined}
             >
               {isViewMode ? t.summary : t.appName}
             </span>
@@ -75,8 +74,8 @@ export const Header: React.FC<HeaderProps> = ({
           {isViewMode && (
             <button 
               onClick={onExport}
-              style={{ backgroundColor: `${themeBlue}15`, color: themeBlue }}
-              className="w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition-all animate-in zoom-in duration-200"
+              style={{ backgroundColor: themeConfig ? themeConfig.colors.inputBg : `${themeBlue}15`, color: themeBlue }}
+              className="w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition-all"
               aria-label={t.exportList}
               title={t.exportList}
             >
@@ -88,10 +87,8 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button 
             onClick={onToggleViewMode}
-            style={isViewMode ? { backgroundColor: themeBlue, color: themeConfig?.isDark ? '#0F172A' : '#FFFFFF' } : themeConfig ? { backgroundColor: themeConfig.isDark ? '#1E293B' : '#F3F4F6', color: themeConfig.colors.textSecondary } : undefined}
-            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
-              isViewMode ? 'text-white shadow-lg' : isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-gray-50 text-gray-400'
-            }`}
+            style={isViewMode ? { backgroundColor: themeBlue, color: '#FFFFFF' } : themeConfig ? { backgroundColor: themeConfig.colors.inputBg, color: themeConfig.colors.textSecondary } : undefined}
+            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95"
             title={t.viewMode}
             aria-label={t.viewMode}
           >
@@ -104,12 +101,13 @@ export const Header: React.FC<HeaderProps> = ({
           <button 
             onClick={onClearList}
             style={themeConfig ? {
-              backgroundColor: themeConfig.isDark ? '#450a0a' : '#fef2f2',
-              color: '#dc2626'
-            } : undefined}
-            className={`w-10 h-10 flex items-center justify-center text-[#dc2626] rounded-xl transition-colors ${
-              isDarkTheme ? 'bg-red-950/40 active:bg-red-900/40' : 'bg-red-50 active:bg-red-100'
-            }`}
+              backgroundColor: themeConfig.colors.deleteBg,
+              color: themeConfig.colors.deleteText
+            } : {
+              backgroundColor: '#FEE2E2',
+              color: '#DC2626'
+            }}
+            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95"
             title={t.clearList}
             aria-label={t.clearList}
           >
@@ -121,12 +119,10 @@ export const Header: React.FC<HeaderProps> = ({
           <button 
             onClick={onOpenSettings}
             style={themeConfig ? {
-              backgroundColor: themeConfig.isDark ? '#1E293B' : '#F3F4F6',
+              backgroundColor: themeConfig.colors.inputBg,
               color: themeConfig.colors.textSecondary
             } : undefined}
-            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors ${
-              isDarkTheme ? 'bg-slate-800 text-slate-300 active:bg-slate-700' : 'bg-gray-50 text-gray-400 active:bg-gray-100'
-            }`}
+            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95"
             title={t.settingsTitle}
             aria-label={t.settingsTitle}
           >
@@ -153,7 +149,7 @@ export const Header: React.FC<HeaderProps> = ({
             className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
               !themeConfig ? (currentFilter === 'all' 
                 ? (isDarkTheme ? 'bg-white text-slate-900 shadow-md' : 'bg-gray-900 text-white shadow-md')
-                : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-gray-100 text-gray-600')) : 'shadow-xs'
+                : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-gray-100 text-gray-600')) : 'shadow-none'
             }`}
           >
             {t.filterAll}: {itemCount}
@@ -172,7 +168,7 @@ export const Header: React.FC<HeaderProps> = ({
             className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
               !themeConfig ? (currentFilter === 'pending' 
                 ? 'text-white shadow-md' 
-                : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-blue-50 text-blue-700')) : 'shadow-xs'
+                : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-blue-50 text-blue-700')) : 'shadow-none'
             }`}
           >
             {t.filterAvailable}: {availableCount}
@@ -189,7 +185,7 @@ export const Header: React.FC<HeaderProps> = ({
               color: themeConfig.colors.chipPurchasedText
             }) : undefined}
             className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
-              !themeConfig ? (currentFilter === 'purchased' ? 'bg-green-600 text-white shadow-md' : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-green-100 text-green-700')) : 'shadow-xs'
+              !themeConfig ? (currentFilter === 'purchased' ? 'bg-green-600 text-white shadow-md' : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-green-100 text-green-700')) : 'shadow-none'
             }`}
           >
             {t.filterPurchased}: {purchasedCount}
@@ -206,7 +202,7 @@ export const Header: React.FC<HeaderProps> = ({
               color: themeConfig.colors.chipUnavailableText
             }) : undefined}
             className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
-              !themeConfig ? (currentFilter === 'unavailable' ? 'bg-amber-600 text-white shadow-md' : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-amber-100 text-amber-700')) : 'shadow-xs'
+              !themeConfig ? (currentFilter === 'unavailable' ? 'bg-amber-600 text-white shadow-md' : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-amber-100 text-amber-700')) : 'shadow-none'
             }`}
           >
             {t.filterUnavailable}: {unavailableCount}

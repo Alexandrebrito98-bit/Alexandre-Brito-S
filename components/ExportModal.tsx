@@ -2,46 +2,68 @@ import React, { useState } from 'react';
 import { ChevronLeft, ArrowRight, Bookmark, Trash2 } from 'lucide-react';
 import { Language } from '../types';
 import { getTranslation } from '../i18n';
+import { AppThemeConfig } from '../utils/appThemes';
 
 interface ExportModalProps {
   onConfirm: (includePrice: boolean) => void;
   onSaveHistory: (clearAfterSave: boolean) => void;
   onClose: () => void;
   lang?: Language;
+  themeConfig?: AppThemeConfig;
 }
 
-export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHistory, onClose, lang = 'pt' }) => {
+export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHistory, onClose, lang = 'pt', themeConfig }) => {
   const [showSaveOptions, setShowSaveOptions] = useState(false);
   const t = getTranslation(lang);
+
+  const cardBg = themeConfig?.colors.card || '#FFFFFF';
+  const textColor = themeConfig?.colors.text || '#0F172A';
+  const textSecondaryColor = themeConfig?.colors.textSecondary || '#64748B';
+  const primaryColor = themeConfig?.colors.primary || '#2563EB';
+  const inputBg = themeConfig?.colors.inputBg || '#F1F5F9';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300">
-        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 sm:hidden" onClick={onClose} />
+      <div 
+        style={{
+          backgroundColor: cardBg,
+          color: textColor
+        }}
+        className="relative w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 border-0 shadow-none animate-in slide-in-from-bottom duration-300"
+      >
+        <div className="w-12 h-1.5 rounded-full mx-auto mb-6 sm:hidden opacity-30" style={{ backgroundColor: textSecondaryColor }} onClick={onClose} />
         
         {showSaveOptions ? (
           <div className="animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-2">
               <button 
                 onClick={() => setShowSaveOptions(false)}
-                className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 active:scale-90 transition-transform"
+                style={{
+                  backgroundColor: inputBg,
+                  color: textSecondaryColor
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-xl active:scale-90 transition-transform border-0 shadow-none"
                 title={t.back}
                 aria-label={t.back}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <h2 className="text-xl font-bold text-gray-900 text-center flex-1 pr-8">{t.saveOptionsTitle}</h2>
+              <h2 style={{ color: primaryColor }} className="text-base font-bold uppercase tracking-wider text-center flex-1 pr-8">{t.saveOptionsTitle}</h2>
             </div>
             
-            <p className="text-gray-500 text-sm mb-6 text-center leading-relaxed">
+            <p style={{ color: textSecondaryColor }} className="text-sm mb-6 text-center leading-relaxed">
               {t.saveOptionsSubtitle}
             </p>
 
             <div className="space-y-3">
               <button 
                 onClick={() => onSaveHistory(true)}
-                className="w-full py-4 px-5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl active:scale-[0.98] transition-all text-left flex items-center justify-between shadow-md shadow-green-100"
+                style={{
+                  backgroundColor: primaryColor,
+                  color: '#FFFFFF'
+                }}
+                className="w-full py-4 px-5 font-bold rounded-2xl active:scale-[0.98] transition-all text-left flex items-center justify-between border-0 shadow-none"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -49,7 +71,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                   </div>
                   <div className="min-w-0">
                     <div className="font-bold text-sm">{t.saveAndClear}</div>
-                    <div className="text-[11px] text-green-100 font-medium truncate">{t.saveAndClearDesc}</div>
+                    <div className="text-[11px] opacity-80 font-medium truncate">{t.saveAndClearDesc}</div>
                   </div>
                 </div>
                 <ArrowRight className="w-5 h-5 shrink-0 opacity-80 ml-2" />
@@ -57,23 +79,28 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
 
               <button 
                 onClick={() => onSaveHistory(false)}
-                className="w-full py-4 px-5 bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 font-bold rounded-2xl active:scale-[0.98] transition-all text-left flex items-center justify-between"
+                style={{
+                  backgroundColor: inputBg,
+                  color: textColor
+                }}
+                className="w-full py-4 px-5 font-bold rounded-2xl active:scale-[0.98] transition-all text-left flex items-center justify-between border-0 shadow-none"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gray-200/80 flex items-center justify-center shrink-0 text-gray-600">
+                  <div className="w-10 h-10 rounded-xl bg-black/10 flex items-center justify-center shrink-0" style={{ color: textColor }}>
                     <Bookmark className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
                     <div className="font-bold text-sm">{t.onlySave}</div>
-                    <div className="text-[11px] text-gray-500 font-medium truncate">{t.onlySaveDesc}</div>
+                    <div className="text-[11px] font-medium truncate" style={{ color: textSecondaryColor }}>{t.onlySaveDesc}</div>
                   </div>
                 </div>
-                <ArrowRight className="w-5 h-5 shrink-0 opacity-60 text-gray-400 ml-2" />
+                <ArrowRight className="w-5 h-5 shrink-0 opacity-60 ml-2" style={{ color: textSecondaryColor }} />
               </button>
 
               <button 
                 onClick={() => setShowSaveOptions(false)}
-                className="w-full py-3 text-gray-400 hover:text-gray-600 font-bold text-sm transition-colors mt-1"
+                style={{ color: textSecondaryColor }}
+                className="w-full py-3 font-bold text-sm transition-colors mt-1"
               >
                 {t.back}
               </button>
@@ -81,15 +108,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
           </div>
         ) : (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2 text-center">{t.exportModalTitle}</h2>
-            <p className="text-gray-500 text-sm mb-8 text-center leading-relaxed">
+            <h2 style={{ color: primaryColor }} className="text-base font-bold uppercase tracking-wider mb-2 text-center">{t.exportModalTitle}</h2>
+            <p style={{ color: textSecondaryColor }} className="text-sm mb-8 text-center leading-relaxed">
               {t.exportModalSubtitle}
             </p>
             
             <div className="space-y-3">
               <button 
                 onClick={() => onConfirm(true)}
-                className="w-full py-4 px-6 bg-blue-600 text-white font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-between"
+                style={{
+                  backgroundColor: primaryColor,
+                  color: '#FFFFFF'
+                }}
+                className="w-full py-4 px-6 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-between border-0 shadow-none"
               >
                 <div className="flex items-center gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -97,14 +128,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                   </svg>
                   <span>{t.downloadWithPrices}</span>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
               
               <button 
                 onClick={() => onConfirm(false)}
-                className="w-full py-4 px-6 bg-gray-100 text-gray-700 font-bold rounded-2xl active:bg-gray-200 transition-all flex items-center justify-between"
+                style={{
+                  backgroundColor: inputBg,
+                  color: textColor
+                }}
+                className="w-full py-4 px-6 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-between border-0 shadow-none"
               >
                 <div className="flex items-center gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,16 +147,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                   </svg>
                   <span>{t.downloadOnlyProducts}</span>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
 
-              <div className="h-px bg-gray-100 my-2" />
-
               <button 
                 onClick={() => setShowSaveOptions(true)}
-                className="w-full py-4 px-6 bg-green-50 text-green-700 font-bold rounded-2xl active:bg-green-100 transition-all flex items-center justify-between border border-green-100"
+                style={{
+                  backgroundColor: inputBg,
+                  color: primaryColor
+                }}
+                className="w-full py-4 px-6 font-bold rounded-2xl active:scale-95 transition-all flex items-center justify-between border-0 shadow-none"
               >
                 <div className="flex items-center gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -129,14 +166,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
                   </svg>
                   <span>{t.saveToHistory}</span>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
               
               <button 
                 onClick={onClose}
-                className="w-full py-4 text-gray-400 font-bold text-sm"
+                style={{ color: textSecondaryColor }}
+                className="w-full py-4 font-bold text-sm"
               >
                 {t.cancel}
               </button>
