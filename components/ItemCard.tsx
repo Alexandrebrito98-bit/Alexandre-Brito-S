@@ -311,7 +311,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const currentAppTheme = APP_THEMES[activeThemeId] || APP_THEMES[DEFAULT_APP_THEME];
 
   const isDarkCard = currentAppTheme.isDark;
-  const defaultCardBg = currentAppTheme.colors.card;
+  const defaultCardBg = currentAppTheme.colors.itemCardBg || (currentAppTheme.isDark ? '#1E293B' : 'rgba(255, 255, 255, 0.7)');
+  const itemCardBorder = currentAppTheme.colors.itemCardBorder || (activeThemeId === 'forest' ? 'rgba(31, 92, 63, 0.12)' : 'rgba(15, 23, 42, 0.08)');
 
   const background = useTransform(
     x,
@@ -391,10 +392,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       <div 
         style={{
           backgroundColor: !item.isAvailable 
-            ? (isDarkCard ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0, 0, 0, 0.02)') 
-            : undefined
+            ? (isDarkCard ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0, 0, 0, 0.03)') 
+            : defaultCardBg,
+          borderColor: itemCardBorder
         }}
-        className={`flex items-center py-2.5 px-3 border-0 transition-all ${!item.isAvailable ? (isDarkCard ? 'bg-slate-900/40' : 'bg-gray-50/50') : ''}`}
+        className={`flex items-center py-2 sm:py-2.5 px-3 rounded-xl border my-1 transition-all ${!item.isAvailable ? (isDarkCard ? 'bg-slate-900/40' : 'bg-gray-50/50') : ''}`}
       >
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center gap-2">
@@ -461,13 +463,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({
             }}
             className={`font-bold ${textSizeClass} ${!item.isAvailable ? 'text-gray-400' : isDarkCard ? 'text-slate-200' : 'text-gray-700'}`}
           >
-            {currency} {item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {currency}{item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <span 
             style={{ color: currentAppTheme.colors.textSecondary }}
             className="text-[9px] font-medium"
           >
-            {t.subtotal} {currency} {subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {t.subtotal} {currency}{subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
@@ -476,7 +478,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   return (
     <div 
-      className="relative overflow-hidden item-card select-none py-1"
+      style={{
+        backgroundColor: defaultCardBg,
+        borderColor: itemCardBorder
+      }}
+      className="relative overflow-hidden item-card select-none my-1 rounded-xl border transition-all"
     >
       {/* Indicador visual de Long Press (~1s) */}
       {isLongPressing && (
@@ -490,7 +496,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
       {/* Swipe Backgrounds */}
       {settings.isSwipeEnabled && (
-        <div className="absolute inset-0 flex items-center justify-between px-8 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-between px-6 pointer-events-none rounded-xl">
           {settings.rightSwipeAction !== 'none' && (
             <motion.div 
               style={{ opacity: opacityLeft, scale: scaleLeft }}
@@ -532,7 +538,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         onPointerCancel={handlePointerCancel}
         onPointerLeave={cancelLongPress}
         style={{ x, background }}
-        className={`relative flex items-center py-4 px-1 z-10 touch-pan-y transition-colors ${
+        className={`relative flex items-center py-2.5 sm:py-3 px-3 z-10 touch-pan-y transition-colors rounded-xl ${
           isLongPressing ? 'bg-blue-50/40' : !item.isAvailable ? 'bg-gray-50/50' : ''
         }`}
       >
@@ -768,8 +774,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
         {/* Preço e subtotal alinhados à direita */}
         <div className="flex flex-col items-end shrink-0 ml-1 text-right">
-          <div className="flex items-center justify-end gap-1">
-            <span style={{ color: currentAppTheme.colors.textSecondary }} className="text-[9px] font-medium">{currency}</span>
+          <div className="flex items-center justify-end">
+            <span style={{ color: currentAppTheme.colors.textSecondary }} className="text-[9px] font-medium mr-0.5">{currency}</span>
             <input
               type="text"
               inputMode="decimal"
@@ -787,10 +793,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               className={`w-16 bg-transparent border-none text-right font-bold transition-colors focus:ring-0 p-0 outline-none ${textSizeClass}`}
             />
           </div>
-          <div style={{ color: currentAppTheme.colors.textSecondary }} className="text-[9px] mt-0.5 flex items-center gap-1 text-right justify-end">
-            <span>{t.subtotal}</span>
+          <div style={{ color: currentAppTheme.colors.textSecondary }} className="text-[9px] mt-0.5 flex items-center text-right justify-end">
+            <span className="mr-1">{t.subtotal}</span>
             <span style={{ color: currentAppTheme.colors.text }} className="font-bold text-right">
-              {currency} {subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {currency}{subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ShoppingItem, SortMode, AppSettings, FilterStatus, SavedList, ViewSortOption } from './types';
+import { ShoppingItem, SortMode, AppSettings, FilterStatus, SavedList, ViewSortOption, ShoppingList } from './types';
 import { Header } from './components/Header';
 import { ItemCard } from './components/ItemCard';
 import { SettingsModal } from './components/SettingsModal';
 import { ExportModal } from './components/ExportModal';
-import { ChevronUp, Check, SlidersHorizontal, ArrowUpDown, DollarSign, Shapes, Clock, Maximize2, ArrowLeft, ChevronDown } from 'lucide-react';
+import { ListMenuModal } from './components/ListMenuModal';
+import { ChevronUp, Check, SlidersHorizontal, ArrowUpDown, DollarSign, Shapes, Clock, Maximize2, ArrowLeft, ChevronDown, Plus } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useKeyboardAvoidance } from './hooks/useKeyboardAvoidance';
@@ -19,12 +20,99 @@ import {
 } from './utils/themePresets';
 import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME, AppThemeConfig } from './utils/appThemes';
 
+const MULTI_LISTS_KEY = 'superlist_multi_lists';
+const ACTIVE_LIST_KEY = 'superlist_active_list_id';
 const STORAGE_KEY = 'superlist_data';
 const SETTINGS_KEY = 'superlist_settings';
 const VIEW_SORT_KEY = 'superlist_view_sort_mode';
 
 const App: React.FC = () => {
-  const [items, setItems] = useState<ShoppingItem[]>([]);
+  const [lists, setLists] = useState<ShoppingList[]>(() => {
+    try {
+      const saved = localStorage.getItem(MULTI_LISTS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Se o usuário já tiver uma lista com o nome antigo "Minha Lista", renomeie para "Mercado"
+          return parsed.map((l: ShoppingList) => {
+            if (l.name === 'Minha Lista') {
+              return { ...l, name: 'Mercado' };
+            }
+            return l;
+          });
+        }
+      }
+    } catch (e) {}
+
+    let legacyItems: ShoppingItem[] = [];
+    try {
+      const savedLegacy = localStorage.getItem(STORAGE_KEY);
+      if (savedLegacy) legacyItems = JSON.parse(savedLegacy);
+    } catch (e) {}
+
+    let legacyHistory: SavedList[] = [];
+    try {
+      const savedSettings = localStorage.getItem(SETTINGS_KEY);
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        if (Array.isArray(parsedSettings.savedHistory)) {
+          legacyHistory = parsedSettings.savedHistory;
+        }
+      }
+    } catch (e) {}
+
+    return [
+      {
+        id: 'default',
+        name: 'Mercado',
+        icon: '🛒',
+        createdAt: Date.now(),
+        items: legacyItems,
+        searchTerm: '',
+        savedHistory: legacyHistory
+      }
+    ];
+  });
+
+  const [activeListId, setActiveListId] = useState<string>(() => {
+    try {
+      const savedId = localStorage.getItem(ACTIVE_LIST_KEY);
+      if (savedId) return savedId;
+    } catch (e) {}
+    return 'default';
+  });
+
+  const [showListMenu, setShowListMenu] = useState(false);
+
+  const activeList = useMemo(() => {
+    const found = lists.find(l => l.id === activeListId);
+    if (found) return found;
+    return lists[0] || {
+      id: 'default',
+      name: 'Mercado',
+      icon: '🛒',
+      createdAt: Date.now(),
+      items: [],
+      searchTerm: '',
+      savedHistory: []
+    };
+  }, [lists, activeListId]);
+
+  const items = useMemo(() => activeList.items || [], [activeList.items]);
+
+  const setItems = useCallback((updater: ShoppingItem[] | ((prev: ShoppingItem[]) => ShoppingItem[])) => {
+    setLists(prevLists => {
+      return prevLists.map(list => {
+        if (list.id === activeList.id) {
+          const currentListItems = list.items || [];
+          const nextItems = typeof updater === 'function' ? updater(currentListItems) : updater;
+          return { ...list, items: nextItems };
+        }
+        return list;
+      });
+    });
+  }, [activeList.id]);
+
   const [settings, setSettings] = useState<AppSettings>({
     language: 'pt',
     theme: DEFAULT_APP_THEME,
@@ -61,7 +149,18 @@ const App: React.FC = () => {
   const [isNewItemPurchased, setIsNewItemPurchased] = useState(false);
   const [isNewItemUnavailable, setIsNewItemUnavailable] = useState(false);
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => activeList.searchTerm || '');
+
+  useEffect(() => {
+    setSearchTerm(activeList.searchTerm || '');
+  }, [activeList.id]);
+
+  const handleSearchChange = (term: string) => {
+    setSearchTerm(term);
+    setLists(prevLists => prevLists.map(list => 
+      list.id === activeList.id ? { ...list, searchTerm: term } : list
+    ));
+  };
   const [feedback, setFeedback] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -205,26 +304,29 @@ const App: React.FC = () => {
       items: [...items]
     };
 
-    setSettings(prev => ({
-      ...prev,
-      savedHistory: [newList, ...(prev.savedHistory || [])]
+    setLists(prevLists => prevLists.map(list => {
+      if (list.id === activeList.id) {
+        return {
+          ...list,
+          savedHistory: [newList, ...(list.savedHistory || [])],
+          items: clearAfterSave ? [] : list.items
+        };
+      }
+      return list;
     }));
 
     if (clearAfterSave) {
-      setItems([]);
       showToast(t.listSavedAndCleared);
     } else {
       showToast(t.listSavedToHistory);
     }
 
     setShowExportModal(false);
-  }, [items, totalValue, showToast, t]);
+  }, [items, totalValue, activeList.id, showToast, t]);
 
   useEffect(() => {
-    const savedItems = localStorage.getItem(STORAGE_KEY);
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     const savedViewSort = localStorage.getItem(VIEW_SORT_KEY);
-    if (savedItems) setItems(JSON.parse(savedItems) as ShoppingItem[]);
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings) as Partial<AppSettings>;
       setSettings(prev => ({ 
@@ -236,11 +338,88 @@ const App: React.FC = () => {
     if (savedViewSort && ['alphabetical', 'value', 'category', 'last_modified'].includes(savedViewSort)) {
       setViewSortOption(savedViewSort as ViewSortOption);
     }
+
+    // Migração de segurança: renomear qualquer lista 'Minha Lista' para 'Mercado'
+    setLists(prev => {
+      const hasOldName = prev.some(l => l.name === 'Minha Lista');
+      if (hasOldName) {
+        return prev.map(l => l.name === 'Minha Lista' ? { ...l, name: 'Mercado' } : l);
+      }
+      return prev;
+    });
   }, []);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }, [items]);
-  useEffect(() => { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem(VIEW_SORT_KEY, viewSortOption); }, [viewSortOption]);
+  useEffect(() => {
+    localStorage.setItem(MULTI_LISTS_KEY, JSON.stringify(lists));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(activeList.items || []));
+  }, [lists, activeList]);
+
+  useEffect(() => {
+    localStorage.setItem(ACTIVE_LIST_KEY, activeListId);
+  }, [activeListId]);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_SORT_KEY, viewSortOption);
+  }, [viewSortOption]);
+
+  const handleSelectList = useCallback((id: string) => {
+    setActiveListId(id);
+    const target = lists.find(l => l.id === id);
+    if (target) {
+      setSearchTerm(target.searchTerm || '');
+    }
+  }, [lists]);
+
+  const handleCreateList = useCallback((name: string, icon?: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const newList: ShoppingList = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      icon: icon || '🛒',
+      createdAt: Date.now(),
+      items: [],
+      searchTerm: '',
+      savedHistory: []
+    };
+    setLists(prev => [...prev, newList]);
+    setActiveListId(newList.id);
+    setSearchTerm('');
+    showToast(t.listCreated(newList.name));
+  }, [showToast, t]);
+
+  const handleRenameList = useCallback((id: string, name: string, icon?: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setLists(prev => prev.map(l => l.id === id ? { ...l, name: trimmed, icon: icon || l.icon } : l));
+    showToast(t.listRenamed(trimmed));
+  }, [showToast, t]);
+
+  const handleDeleteList = useCallback((id: string) => {
+    if (lists.length <= 1) {
+      showToast(t.cannotDeleteOnlyList);
+      return;
+    }
+    const target = lists.find(l => l.id === id);
+    const targetName = target?.name || '';
+    setLists(prev => {
+      const remaining = prev.filter(l => l.id !== id);
+      if (activeListId === id && remaining.length > 0) {
+        setActiveListId(remaining[0].id);
+        setSearchTerm(remaining[0].searchTerm || '');
+      }
+      return remaining;
+    });
+    showToast(t.listDeleted(targetName));
+  }, [lists, activeListId, showToast, t]);
+
+  const handleUpdateActiveListHistory = useCallback((newHistory: SavedList[]) => {
+    setLists(prev => prev.map(l => l.id === activeList.id ? { ...l, savedHistory: newHistory } : l));
+  }, [activeList.id]);
 
   const handleDeleteItem = useCallback((itemToDelete: ShoppingItem) => {
     if (undoTimerRef.current) {
@@ -721,7 +900,30 @@ const App: React.FC = () => {
 
   const clearList = (type: 'all' | 'purchased' | 'unavailable') => {
     if (type === 'all') setItems([]);
-    else if (type === 'purchased') setItems(prev => prev.filter(i => !(i.isAvailable && i.isPurchased)));
+    else if (type === 'purchased') {
+      const purchased = items.filter(i => i.isAvailable && i.isPurchased);
+      if (purchased.length > 0) {
+        const purchaseRecord: SavedList = {
+          id: crypto.randomUUID(),
+          date: Date.now(),
+          totalItems: purchased.length,
+          totalValue: purchased.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0),
+          items: [...purchased]
+        };
+        setLists(prevLists => prevLists.map(list => {
+          if (list.id === activeList.id) {
+            return {
+              ...list,
+              savedHistory: [purchaseRecord, ...(list.savedHistory || [])],
+              items: list.items.filter(i => !(i.isAvailable && i.isPurchased))
+            };
+          }
+          return list;
+        }));
+      } else {
+        setItems(prev => prev.filter(i => !(i.isAvailable && i.isPurchased)));
+      }
+    }
     else if (type === 'unavailable') setItems(prev => prev.filter(i => i.isAvailable));
     setShowClearConfirm(false);
   };
@@ -765,9 +967,12 @@ const App: React.FC = () => {
         primaryColor={activeAppTheme.colors.primary}
         isDarkTheme={activeAppTheme.isDark}
         themeConfig={activeAppTheme}
+        activeListName={activeList.name}
+        activeListIcon={activeList.icon}
+        onOpenListMenu={() => setShowListMenu(true)}
       />
 
-      <main className="flex-1 px-4 py-2 space-y-4 max-w-lg mx-auto w-full">
+      <main className="flex-1 px-4 py-2 space-y-3 max-w-lg mx-auto w-full">
         {!isViewMode && (
           <div className="mb-2">
             <div className="flex flex-col gap-2">
@@ -818,7 +1023,7 @@ const App: React.FC = () => {
                   <div className="flex items-center flex-[1.5] px-3">
                     <span 
                       style={{ color: activeAppTheme.colors.textSecondary }}
-                      className="text-[10px] font-bold mr-1 uppercase"
+                      className="text-[10px] font-bold mr-0.5 uppercase"
                     >
                       {settings.currency}
                     </span>
@@ -872,9 +1077,7 @@ const App: React.FC = () => {
                     aria-label={t.addItem}
                     title={t.addItem}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    </svg>
+                    <Plus className="w-6 h-6 text-white" strokeWidth={3} />
                   </button>
                 </div>
               </div>
@@ -1176,7 +1379,7 @@ const App: React.FC = () => {
               <input 
                 type="text" 
                 value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
+                onChange={(e) => handleSearchChange(e.target.value)} 
                 placeholder={t.searchPlaceholder} 
                 style={{
                   backgroundColor: activeAppTheme.colors.inputBg,
@@ -1307,7 +1510,7 @@ const App: React.FC = () => {
             // Agrupado por Categoria (disponível tanto no Modo Visualização quanto na Minha Lista)
             <>
               {viewModeData.categoryGroups.map((group) => (
-                <div key={group.category.id} className="mb-5 last:mb-0">
+                <div key={group.category.id} className="mb-3.5 last:mb-0">
                   <div className="flex items-center justify-between px-1 pb-1.5 mb-1">
                     <div className="flex items-center gap-2">
                       <span className="text-base shrink-0 leading-none" role="img" aria-hidden="true">
@@ -1332,7 +1535,7 @@ const App: React.FC = () => {
                       style={{ color: activeAppTheme.colors.textSecondary }}
                       className="text-[10px] font-bold shrink-0 text-right"
                     >
-                      {settings.currency} {group.subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {settings.currency}{group.subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 
@@ -1393,7 +1596,7 @@ const App: React.FC = () => {
             // Modo de Edição normal na Minha Lista (seções Para Comprar, No Carrinho, Indisponíveis ordenadas pela opção selecionada)
             <>
               {(Object.entries(defaultSections) as [string, ShoppingItem[]][]).map(([key, list]) => list && list.length > 0 && (
-                <div key={key} className="mb-5 last:mb-0">
+                <div key={key} className="mb-3.5 last:mb-0">
                   {/* Títulos de seção em maiúsculas, na cor primária, com espaçamento entre letras */}
                   <div className="flex items-center gap-2 px-1 pb-1.5">
                     <span 
@@ -1543,11 +1746,11 @@ const App: React.FC = () => {
                 >
                   {budgetExceeded ? (
                     <span className="font-bold flex items-center gap-1">
-                      ⚠️ {t.overLimit} {settings.currency} {(totalValue - settings.budgetLimit).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ⚠️ {t.overLimit} {settings.currency}{(totalValue - settings.budgetLimit).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   ) : (
                     <span>
-                      {t.budgetLimit}: {settings.currency} {settings.budgetLimit.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {t.budgetLimit}: {settings.currency}{settings.budgetLimit.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   )}
                 </span>
@@ -1558,9 +1761,9 @@ const App: React.FC = () => {
             <div className="flex items-baseline gap-1.5 shrink-0 text-right">
               <span 
                 style={{ color: activeAppTheme.colors.totalCardText }}
-                className="text-[28px] font-[800] font-mono leading-none tracking-tight text-right"
+                className="text-[28px] font-[800] tabular-nums tracking-normal leading-none text-right"
               >
-                {settings.currency} {totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {settings.currency}{totalValue.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
               <span 
                 style={{ color: activeAppTheme.colors.totalCardSubtext }}
@@ -1574,7 +1777,7 @@ const App: React.FC = () => {
           {/* Barra de progresso fina e arredondada (trilho translúcido + preenchimento em cor de destaque) */}
           <div 
             style={{ backgroundColor: activeAppTheme.colors.totalCardProgressTrack }}
-            className="w-full h-1.5 sm:h-2 rounded-full overflow-hidden"
+            className="w-full h-2 rounded-full overflow-hidden"
           >
             <div 
               style={{ 
@@ -1602,6 +1805,20 @@ const App: React.FC = () => {
         </button>
       )}
 
+      {showListMenu && (
+        <ListMenuModal 
+          lists={lists}
+          activeListId={activeList.id}
+          onSelectList={handleSelectList}
+          onCreateList={handleCreateList}
+          onRenameList={handleRenameList}
+          onDeleteList={handleDeleteList}
+          onClose={() => setShowListMenu(false)}
+          themeConfig={activeAppTheme}
+          lang={currentLang}
+        />
+      )}
+
       {showSettings && (
         <SettingsModal 
           settings={settings} 
@@ -1610,6 +1827,11 @@ const App: React.FC = () => {
           onAddItemToList={handleAddItemFromSettings}
           onAddMultipleItemsToList={handleAddMultipleItemsFromSettings}
           currentItems={items}
+          activeListName={activeList.name}
+          activeListHistory={activeList.savedHistory || []}
+          onUpdateActiveListHistory={handleUpdateActiveListHistory}
+          allListsHistory={lists.flatMap(l => l.savedHistory || [])}
+          allListsItems={lists.flatMap(l => l.items || [])}
         />
       )}
       {showExportModal && (

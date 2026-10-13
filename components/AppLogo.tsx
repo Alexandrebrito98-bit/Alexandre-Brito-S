@@ -3,9 +3,10 @@ import React from 'react';
 interface AppLogoProps {
   className?: string;
   size?: number;
+  backgroundColor?: string;
 }
 
-export const AppLogo: React.FC<AppLogoProps> = ({ className = 'w-8 h-8', size = 32 }) => {
+export const AppLogo: React.FC<AppLogoProps> = ({ className = 'w-8 h-8', size = 32, backgroundColor }) => {
   return (
     <svg 
       viewBox="0 0 32 32" 
@@ -17,8 +18,8 @@ export const AppLogo: React.FC<AppLogoProps> = ({ className = 'w-8 h-8', size = 
       role="img"
       aria-label="Ícone Supermercado e Lista de Compras"
     >
-      {/* Fundo Squircle com gradiente azul padrão do app */}
-      <rect width="32" height="32" rx="8" fill="url(#superlist-app-logo-gradient)" />
+      {/* Fundo Squircle com cor personalizada ou gradiente padrão */}
+      <rect width="32" height="32" rx="8" fill={backgroundColor || "url(#superlist-app-logo-gradient)"} />
       <defs>
         <linearGradient id="superlist-app-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#38BDF8" />

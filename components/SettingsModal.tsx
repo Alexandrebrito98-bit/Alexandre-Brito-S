@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppSettings, SavedList, SwipeAction, FavoriteProduct, ShoppingItem } from '../types';
-import { X, Check, Plus, Trash2, Trophy, Star, Palette, ChevronRight } from 'lucide-react';
+import { X, Check, Plus, Trash2, Trophy, Star, Palette, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { getTranslation } from '../i18n';
 import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME } from '../utils/appThemes';
 
@@ -11,6 +11,11 @@ interface SettingsModalProps {
   onAddItemToList?: (item: { name: string; quantity?: number; unitPrice?: number }) => void;
   onAddMultipleItemsToList?: (items: { name: string; quantity?: number; unitPrice?: number }[]) => void;
   currentItems?: ShoppingItem[];
+  activeListName?: string;
+  activeListHistory?: SavedList[];
+  onUpdateActiveListHistory?: (history: SavedList[]) => void;
+  allListsHistory?: SavedList[];
+  allListsItems?: ShoppingItem[];
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -19,7 +24,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   onAddItemToList,
   onAddMultipleItemsToList,
-  currentItems
+  currentItems,
+  activeListName,
+  activeListHistory,
+  onUpdateActiveListHistory,
+  allListsHistory,
+  allListsItems
 }) => {
   const [localSettings, setLocalSettings] = useState<AppSettings>({
     ...settings,
@@ -53,6 +63,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [newFavQty, setNewFavQty] = useState('1');
   const [rankingTab, setRankingTab] = useState<'5' | '10'>('5');
   const [addedItemKey, setAddedItemKey] = useState<string | null>(null);
+
+  // Estado e controle de ordenação do Histórico de Compras
+  type HistorySortOption = 'date_desc' | 'date_asc' | 'value_desc' | 'value_asc' | 'name_asc' | 'name_desc';
+  const [historySortOption, setHistorySortOption] = useState<HistorySortOption>('date_desc');
+  const [isHistorySortMenuOpen, setIsHistorySortMenuOpen] = useState(false);
+
+  const historySortOptions: { id: HistorySortOption; label: string }[] = useMemo(() => [
+    { id: 'date_desc', label: currentLang === 'en' ? 'Date (Newest)' : 'Data (Mais recente)' },
+    { id: 'date_asc', label: currentLang === 'en' ? 'Date (Oldest)' : 'Data (Mais antiga)' },
+    { id: 'value_desc', label: currentLang === 'en' ? 'Value (Highest)' : 'Valor (Maior valor)' },
+    { id: 'value_asc', label: currentLang === 'en' ? 'Value (Lowest)' : 'Valor (Menor valor)' },
+    { id: 'name_asc', label: currentLang === 'en' ? 'Name (A - Z)' : 'Nome (A - Z)' },
+    { id: 'name_desc', label: currentLang === 'en' ? 'Name (Z - A)' : 'Nome (Z - A)' },
+  ], [currentLang]);
+
+  const getHistorySortLabel = (option: HistorySortOption) => {
+    switch (option) {
+      case 'date_desc': return currentLang === 'en' ? 'Newest' : 'Recente';
+      case 'date_asc': return currentLang === 'en' ? 'Oldest' : 'Antiga';
+      case 'value_desc': return currentLang === 'en' ? 'Highest' : 'Maior';
+      case 'value_asc': return currentLang === 'en' ? 'Lowest' : 'Menor';
+      case 'name_asc': return 'A - Z';
+      case 'name_desc': return 'Z - A';
+      default: return currentLang === 'en' ? 'Sort' : 'Ordenar';
+    }
+  };
+
+  const effectiveHistory = activeListHistory ?? (localSettings.savedHistory || []);
+
+  const sortedHistory = useMemo(() => {
+    if (!effectiveHistory || effectiveHistory.length === 0) return [];
+    const list = [...effectiveHistory];
+
+    return list.sort((a, b) => {
+      switch (historySortOption) {
+        case 'date_desc':
+          return b.date - a.date;
+        case 'date_asc':
+          return a.date - b.date;
+        case 'value_asc':
+          return a.totalValue - b.totalValue;
+        case 'value_desc':
+          return b.totalValue - a.totalValue;
+        case 'name_asc': {
+          const nameA = new Date(a.date).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+          const nameB = new Date(b.date).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+          return nameA.localeCompare(nameB);
+        }
+        case 'name_desc': {
+          const nameA = new Date(a.date).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+          const nameB = new Date(b.date).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+          return nameB.localeCompare(nameA);
+        }
+        default:
+          return b.date - a.date;
+      }
+    });
+  }, [effectiveHistory, historySortOption, locale]);
+
+  const sortedViewingHistoryItems = useMemo(() => {
+    if (!viewingHistory) return [];
+    const items = [...viewingHistory.items];
+    switch (historySortOption) {
+      case 'name_asc':
+        return items.sort((a, b) => a.name.localeCompare(b.name));
+      case 'name_desc':
+        return items.sort((a, b) => b.name.localeCompare(a.name));
+      case 'value_asc':
+        return items.sort((a, b) => (a.unitPrice * a.quantity) - (b.unitPrice * b.quantity));
+      case 'value_desc':
+        return items.sort((a, b) => (b.unitPrice * b.quantity) - (a.unitPrice * a.quantity));
+      default:
+        return items;
+    }
+  }, [viewingHistory, historySortOption]);
 
   useEffect(() => {
     return () => {
@@ -93,7 +178,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleDeleteHistory = (id: string) => {
-    const newHistory = (localSettings.savedHistory || []).filter(h => h.id !== id);
+    const newHistory = effectiveHistory.filter(h => h.id !== id);
+    if (onUpdateActiveListHistory) {
+      onUpdateActiveListHistory(newHistory);
+    }
     const updated: AppSettings = { ...localSettings, savedHistory: newHistory };
     setLocalSettings(updated);
     onUpdate(updated);
@@ -213,12 +301,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     historyToastTimerRef.current = setTimeout(() => setHistoryToast(null), 2500);
   };
 
-  // Cálculo dos Mais Comprados gerado automaticamente apenas a partir dos itens marcados como "comprado"
+  // Cálculo dos Mais Comprados gerado automaticamente apenas a partir dos itens marcados como "comprado" (global)
   const mostPurchasedItems = useMemo(() => {
-    const history = localSettings.savedHistory || [];
+    const history = allListsHistory ?? localSettings.savedHistory ?? [];
+    const itemsToScan = allListsItems ?? currentItems ?? [];
     const map = new Map<string, { name: string; purchaseCount: number; totalQuantity: number; lastUnitPrice: number }>();
 
-    // 1. Contagem dos itens marcados como comprado no histórico salvo ao longo do tempo
+    // 1. Contagem dos itens marcados como comprado no histórico salvo ao longo do tempo (global)
     history.forEach(list => {
       (list.items || []).forEach(item => {
         if (item.isPurchased) {
@@ -243,9 +332,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       });
     });
 
-    // 2. Contagem dos itens marcados como comprado na lista atual
-    if (currentItems && currentItems.length > 0) {
-      currentItems.forEach(item => {
+    // 2. Contagem dos itens marcados como comprado nas listas ativas / globais
+    if (itemsToScan && itemsToScan.length > 0) {
+      itemsToScan.forEach(item => {
         if (item.isPurchased && item.isAvailable) {
           const key = item.name.trim().toLowerCase();
           if (!key) return;
@@ -277,7 +366,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
 
     return list;
-  }, [localSettings.savedHistory, currentItems]);
+  }, [allListsHistory, localSettings.savedHistory, allListsItems, currentItems]);
 
   const topItems = useMemo(() => {
     const limit = rankingTab === '5' ? 5 : 10;
@@ -293,15 +382,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+      {/* Fundo escurecido fixo que não fecha ao toque */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div 
         style={{
           backgroundColor: currentAppTheme.colors.card,
           color: currentAppTheme.colors.text
         }}
-        className="relative w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 animate-in slide-in-from-bottom duration-300 border-0 shadow-none"
+        className="relative w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 animate-in slide-in-from-bottom duration-300 border-0 shadow-none z-10"
       >
-        <div className="w-12 h-1.5 rounded-full mx-auto mb-6 sm:hidden cursor-pointer opacity-30" style={{ backgroundColor: currentAppTheme.colors.textSecondary }} onClick={onClose} />
-        
         {viewingHistory ? (
           <div className="flex flex-col h-full max-h-[80vh]">
             <div className="flex items-center justify-between mb-6">
@@ -342,7 +431,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-              {viewingHistory.items.map(item => (
+              {sortedViewingHistoryItems.map(item => (
                 <div 
                   key={item.id} 
                   style={{ backgroundColor: currentAppTheme.colors.inputBg }}
@@ -350,11 +439,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   <div className="flex flex-col min-w-0 flex-1">
                     <span style={{ color: currentAppTheme.colors.text }} className="text-xs font-bold truncate">{item.name}</span>
-                    <span style={{ color: currentAppTheme.colors.textSecondary }} className="text-[10px] font-medium">{item.quantity} {t.unitShort} • {localSettings.currency} {item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2 })}</span>
+                    <span style={{ color: currentAppTheme.colors.textSecondary }} className="text-[10px] font-medium">{item.quantity} {t.unitShort} • {localSettings.currency}{item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span style={{ color: currentAppTheme.colors.primary }} className="text-xs font-black">
-                      {localSettings.currency} {(item.unitPrice * item.quantity).toLocaleString(locale, { minimumFractionDigits: 2 })}
+                      {localSettings.currency}{(item.unitPrice * item.quantity).toLocaleString(locale, { minimumFractionDigits: 2 })}
                     </span>
                     <button
                       type="button"
@@ -911,17 +1000,99 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
               </div>
 
-              {/* History Section (Com botão '+' para reutilizar produtos em nova lista) */}
+              {/* History Section (Com botão de ordenar e botão '+' para reutilizar produtos em nova lista) */}
               <div className="space-y-4">
-                <label 
-                  style={{ color: currentAppTheme.colors.primary }}
-                  className="text-xs font-bold uppercase tracking-wider block mb-4"
-                >
-                  {t.historyTitle}
-                </label>
+                <div className="flex items-center justify-between relative mb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <label 
+                      style={{ color: currentAppTheme.colors.primary }}
+                      className="text-xs font-bold uppercase tracking-wider block shrink-0"
+                    >
+                      {t.historyTitle}
+                    </label>
+                    {activeListName && (
+                      <span 
+                        style={{ color: currentAppTheme.colors.textSecondary }}
+                        className="text-[11px] font-semibold truncate"
+                      >
+                        • {activeListName}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Ícone de ordenar no cabeçalho da seção */}
+                  {effectiveHistory && effectiveHistory.length > 0 && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsHistorySortMenuOpen(prev => !prev)}
+                        style={{
+                          backgroundColor: isHistorySortMenuOpen ? currentAppTheme.colors.primary : currentAppTheme.colors.inputBg,
+                          color: isHistorySortMenuOpen ? '#FFFFFF' : currentAppTheme.colors.textSecondary
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95 border-0 shadow-none cursor-pointer"
+                        title={currentLang === 'en' ? 'Sort history' : 'Ordenar histórico'}
+                        aria-label={currentLang === 'en' ? 'Sort history' : 'Ordenar histórico'}
+                        aria-expanded={isHistorySortMenuOpen}
+                      >
+                        <ArrowUpDown className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        <span className="text-[11px] font-bold">
+                          {getHistorySortLabel(historySortOption)}
+                        </span>
+                      </button>
+
+                      {isHistorySortMenuOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsHistorySortMenuOpen(false)} 
+                          />
+                          <div 
+                            style={{
+                              backgroundColor: currentAppTheme.colors.card,
+                              color: currentAppTheme.colors.text,
+                              borderColor: activeThemeId === 'forest' ? 'rgba(31, 92, 63, 0.15)' : 'rgba(15, 23, 42, 0.12)'
+                            }}
+                            className="absolute right-0 top-full mt-1.5 z-50 w-52 py-1.5 rounded-2xl shadow-2xl border animate-in fade-in zoom-in-95 duration-150 overflow-hidden text-left"
+                          >
+                            <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: currentAppTheme.colors.textSecondary }}>
+                              {currentLang === 'en' ? 'Sort by' : 'Ordenar por'}
+                            </div>
+                            <div className="space-y-0.5 px-1">
+                              {historySortOptions.map(option => {
+                                const isActive = historySortOption === option.id;
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setHistorySortOption(option.id);
+                                      setIsHistorySortMenuOpen(false);
+                                    }}
+                                    style={isActive ? {
+                                      backgroundColor: currentAppTheme.colors.primary,
+                                      color: '#FFFFFF'
+                                    } : undefined}
+                                    className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between text-left transition-colors ${
+                                      !isActive ? 'hover:bg-black/5 dark:hover:bg-white/5' : ''
+                                    }`}
+                                  >
+                                    <span>{option.label}</span>
+                                    {isActive && <Check className="w-3.5 h-3.5 shrink-0" strokeWidth={3} />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-3">
-                  {localSettings.savedHistory && localSettings.savedHistory.length > 0 ? (
-                    localSettings.savedHistory.map(history => (
+                  {sortedHistory && sortedHistory.length > 0 ? (
+                    sortedHistory.map(history => (
                       <div 
                         key={history.id} 
                         style={{ backgroundColor: currentAppTheme.colors.inputBg }}
@@ -937,7 +1108,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span style={{ color: currentAppTheme.colors.text }} className="text-sm font-bold">
-                            {localSettings.currency} {history.totalValue.toLocaleString(locale, { minimumFractionDigits: 2 })}
+                            {localSettings.currency}{history.totalValue.toLocaleString(locale, { minimumFractionDigits: 2 })}
                           </span>
                           <div className="flex items-center gap-1">
                             {/* Botão para adicionar todos desta lista */}
@@ -1044,8 +1215,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-1.5 rounded-full mx-auto mb-4 sm:hidden cursor-pointer opacity-30" style={{ backgroundColor: currentAppTheme.colors.textSecondary }} onClick={() => setShowFavoritesModal(false)} />
-
             {/* Header do Modal */}
             <div className="flex items-center justify-between pb-3 mb-4 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
@@ -1298,8 +1467,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-1.5 rounded-full mx-auto mb-4 sm:hidden cursor-pointer opacity-30" style={{ backgroundColor: currentAppTheme.colors.textSecondary }} onClick={() => setShowMostPurchasedModal(false)} />
-
             {/* Header do Modal */}
             <div className="flex items-center justify-between pb-3 mb-4 shrink-0">
               <div className="flex items-center gap-3 min-w-0">

@@ -25,6 +25,9 @@ export interface AppThemeConfig {
     text: string;
     textSecondary: string;
     border: string;
+    // Mini-cards de itens da lista
+    itemCardBg: string;
+    itemCardBorder: string;
     // Chips derived from primary and theme palette
     chipAllBg: string;
     chipAllText: string;
@@ -78,6 +81,9 @@ export const APP_THEMES: Record<AppThemeId, AppThemeConfig> = {
       text: '#0F172A',
       textSecondary: '#64748B',
       border: 'transparent',
+      // Mini-cards de itens da lista
+      itemCardBg: 'rgba(255, 255, 255, 0.75)',
+      itemCardBorder: 'rgba(15, 23, 42, 0.08)',
       chipAllBg: '#0F172A',
       chipAllText: '#FFFFFF',
       chipAvailableBg: '#EFF6FF',
@@ -89,9 +95,9 @@ export const APP_THEMES: Record<AppThemeId, AppThemeConfig> = {
       totalCardBg: '#1E3A8A', // Bloco arredondado azul-escuro
       totalCardText: '#FFFFFF',
       totalCardSubtext: 'rgba(255, 255, 255, 0.75)',
-      totalCardProgressTrack: 'rgba(255, 255, 255, 0.25)',
+      totalCardProgressTrack: 'rgba(255, 255, 255, 0.38)', // Trilho contrastante visível com 0 itens
       totalCardProgressBar: '#38BDF8', // Barra em azul-claro de destaque
-      footerProgressTrack: 'rgba(255, 255, 255, 0.25)',
+      footerProgressTrack: 'rgba(255, 255, 255, 0.38)',
       footerProgressBar: '#38BDF8'
     },
     preview: {
@@ -127,6 +133,9 @@ export const APP_THEMES: Record<AppThemeId, AppThemeConfig> = {
       text: '#1B2A22',
       textSecondary: '#4A5B52',
       border: 'transparent',
+      // Mini-cards de itens da lista
+      itemCardBg: 'rgba(255, 255, 255, 0.65)',
+      itemCardBorder: 'rgba(31, 92, 63, 0.12)',
       chipAllBg: '#1F5C3F',
       chipAllText: '#FFFFFF',
       chipAvailableBg: '#E6EEE8',
@@ -138,16 +147,16 @@ export const APP_THEMES: Record<AppThemeId, AppThemeConfig> = {
       totalCardBg: '#1F5C3F', // Bloco arredondado verde-escuro
       totalCardText: '#FFFFFF',
       totalCardSubtext: 'rgba(255, 255, 255, 0.75)',
-      totalCardProgressTrack: 'rgba(255, 255, 255, 0.25)',
-      totalCardProgressBar: '#EAB308', // Barra amarela como na imagem de referência
-      footerProgressTrack: 'rgba(255, 255, 255, 0.25)',
-      footerProgressBar: '#EAB308'
+      totalCardProgressTrack: 'rgba(255, 255, 255, 0.38)', // Trilho contrastante visível com 0 itens
+      totalCardProgressBar: '#FACC15', // Amarelo vibrante como na imagem de referência
+      footerProgressTrack: 'rgba(255, 255, 255, 0.38)',
+      footerProgressBar: '#FACC15'
     },
     preview: {
       background: '#F4F7F4',
       card: '#E6EEE8',
       primary: '#1F5C3F',
-      accent: '#EAB308',
+      accent: '#FACC15',
       border: 'transparent'
     }
   }

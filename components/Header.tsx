@@ -3,6 +3,7 @@ import { FilterStatus, Language } from '../types';
 import { AppLogo } from './AppLogo';
 import { getTranslation } from '../i18n';
 import { AppThemeConfig } from '../utils/appThemes';
+import { ChevronDown } from 'lucide-react';
 
 interface HeaderProps {
   itemCount: number;
@@ -20,6 +21,9 @@ interface HeaderProps {
   primaryColor?: string;
   isDarkTheme?: boolean;
   themeConfig?: AppThemeConfig;
+  activeListName?: string;
+  activeListIcon?: string;
+  onOpenListMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -37,7 +41,10 @@ export const Header: React.FC<HeaderProps> = ({
   lang = 'pt',
   primaryColor,
   isDarkTheme = false,
-  themeConfig
+  themeConfig,
+  activeListName,
+  activeListIcon,
+  onOpenListMenu
 }) => {
   const t = getTranslation(lang);
   const themeBlue = themeConfig?.colors.primary || primaryColor || '#2563eb';
@@ -52,15 +59,41 @@ export const Header: React.FC<HeaderProps> = ({
     >
       <div className="flex justify-between items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2 sm:gap-2.5 truncate min-w-0">
-            <AppLogo className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0" />
-            <span 
-              className={`truncate leading-tight ${isViewMode ? 'uppercase tracking-wider font-extrabold' : ''}`}
-              style={themeConfig ? { color: isViewMode ? themeConfig.colors.primary : themeConfig.colors.text } : undefined}
-            >
-              {isViewMode ? t.summary : t.appName}
-            </span>
-          </h1>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2 sm:gap-2.5 truncate shrink-0">
+              <AppLogo 
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0" 
+                backgroundColor={themeConfig ? themeConfig.colors.primary : undefined}
+              />
+              <span 
+                className={`truncate leading-tight ${isViewMode ? 'uppercase tracking-wider font-extrabold' : ''}`}
+                style={themeConfig ? { color: isViewMode ? themeConfig.colors.primary : themeConfig.colors.text } : undefined}
+              >
+                {isViewMode ? t.summary : t.appName}
+              </span>
+            </h1>
+
+            {/* Nome da lista ativa com ícone de troca ao lado do título */}
+            {!isViewMode && activeListName && onOpenListMenu && (
+              <button
+                type="button"
+                onClick={onOpenListMenu}
+                style={{
+                  backgroundColor: themeConfig ? themeConfig.colors.inputBg : '#F3F4F6',
+                  color: themeConfig ? themeConfig.colors.text : '#111827'
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs sm:text-sm font-semibold transition-all active:scale-95 max-w-[170px] sm:max-w-[220px] border-0 shrink-0 cursor-pointer shadow-none"
+                title={`${t.switchList}: ${activeListName}`}
+                aria-label={`${t.switchList}: ${activeListName}`}
+              >
+                {activeListIcon && (
+                  <span className="text-sm shrink-0 leading-none">{activeListIcon}</span>
+                )}
+                <span className="truncate">{activeListName}</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
+              </button>
+            )}
+          </div>
           {!isViewMode && (
             <p 
               className="text-xs sm:text-sm font-medium truncate mt-0.5"

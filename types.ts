@@ -41,6 +41,16 @@ export interface SavedList {
   items: ShoppingItem[];
 }
 
+export interface ShoppingList {
+  id: string;
+  name: string;
+  icon?: string;
+  createdAt: number;
+  items: ShoppingItem[];
+  searchTerm?: string;
+  savedHistory?: SavedList[];
+}
+
 export type Language = 'pt' | 'en';
 
 export interface FavoriteProduct {

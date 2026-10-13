@@ -165,7 +165,6 @@ export const translations = {
     onlySaveDesc: 'Mantém todos os produtos na lista',
     back: 'Voltar',
 
-    // PDF
     pdfTitle: 'SuperList - Lista de Compras',
     pdfDate: 'Data:',
     pdfQty: 'Qtd',
@@ -176,6 +175,25 @@ export const translations = {
     pdfInCart: 'NO CARRINHO',
     pdfUnavailable: 'INDISPONÍVEIS',
     pdfEstimatedTotal: 'VALOR TOTAL ESTIMADO:',
+
+    // Multi-list
+    myLists: 'Minhas Listas',
+    switchList: 'Trocar lista',
+    activeList: 'Lista Ativa',
+    newList: 'Nova lista',
+    createList: 'Criar lista',
+    listNamePlaceholder: 'Nome da lista (ex: Supermercado, Farmácia, Casa...)',
+    renameList: 'Renomear lista',
+    deleteList: 'Excluir lista',
+    deleteListConfirm: (name: string) => `Tem certeza que deseja excluir a lista "${name}" e todos os seus itens?`,
+    cannotDeleteOnlyList: 'Você precisa ter pelo menos uma lista.',
+    listCreated: (name: string) => `Lista "${name}" criada`,
+    listRenamed: (name: string) => `Lista renomeada para "${name}"`,
+    listDeleted: (name: string) => `Lista "${name}" excluída`,
+    listIcon: 'Ícone (opcional)',
+    save: 'Salvar',
+    holdToManageList: 'Segure uma lista para renomear ou excluir',
+    itemsCount: (count: number) => count === 1 ? '1 item' : `${count} itens`,
   },
   en: {
     // Header
@@ -352,6 +370,25 @@ export const translations = {
     pdfInCart: 'IN CART',
     pdfUnavailable: 'UNAVAILABLE',
     pdfEstimatedTotal: 'ESTIMATED TOTAL VALUE:',
+
+    // Multi-list
+    myLists: 'My Lists',
+    switchList: 'Switch list',
+    activeList: 'Active List',
+    newList: 'New list',
+    createList: 'Create list',
+    listNamePlaceholder: 'List name (e.g. Supermarket, Pharmacy, Home...)',
+    renameList: 'Rename list',
+    deleteList: 'Delete list',
+    deleteListConfirm: (name: string) => `Are you sure you want to delete "${name}" and all its items?`,
+    cannotDeleteOnlyList: 'You must have at least one list.',
+    listCreated: (name: string) => `List "${name}" created`,
+    listRenamed: (name: string) => `List renamed to "${name}"`,
+    listDeleted: (name: string) => `List "${name}" deleted`,
+    listIcon: 'Icon (optional)',
+    save: 'Save',
+    holdToManageList: 'Hold a list to rename or delete',
+    itemsCount: (count: number) => count === 1 ? '1 item' : `${count} items`,
   }
 };
 
