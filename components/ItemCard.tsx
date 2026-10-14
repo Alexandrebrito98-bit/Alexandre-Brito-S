@@ -49,11 +49,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const [isHoldingName, setIsHoldingName] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
+  const cardRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const marketPickerRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const dragGestureRef = useRef<{ isLocked: boolean; isHorizontal: boolean }>({ isLocked: false, isHorizontal: false });
+  const isExecutingActionRef = useRef<boolean>(false);
   const nameHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
   const nameTouchStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -179,6 +182,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     cancelLongPress();
     cancelNameHold();
     touchStartPosRef.current = { x: e.clientX, y: e.clientY };
+    dragGestureRef.current = { isLocked: false, isHorizontal: false };
+    isExecutingActionRef.current = false;
     setIsLongPressing(true);
 
     longPressTimerRef.current = setTimeout(() => {
@@ -195,9 +200,19 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     if (!touchStartPosRef.current) return;
     const dx = e.clientX - touchStartPosRef.current.x;
     const dy = e.clientY - touchStartPosRef.current.y;
-    // Cancel if movement exceeds 10px in any direction (scroll or swipe)
-    if (Math.hypot(dx, dy) > 10) {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    // Cancel long press if moved more than 8px
+    if (Math.hypot(dx, dy) > 8) {
       cancelLongPress();
+    }
+
+    // Direction locking: determine if gesture is predominantly horizontal or vertical
+    if (!dragGestureRef.current.isLocked && (absX > 8 || absY > 8)) {
+      dragGestureRef.current.isLocked = true;
+      // Gesture is only considered horizontal if horizontal distance is clearly greater than vertical
+      dragGestureRef.current.isHorizontal = absX > absY * 1.25;
     }
   };
 
@@ -207,6 +222,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   const handlePointerCancel = () => {
     cancelLongPress();
+    // Interrupted touch -> smoothly return item without triggering action
+    dragGestureRef.current = { isLocked: false, isHorizontal: false };
+    x.set(0);
   };
 
   useEffect(() => {
@@ -364,10 +382,26 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   const handleDragEnd = (_: any, info: any) => {
     cancelLongPress();
-    if (!settings.isSwipeEnabled) return;
-    const threshold = 100;
-    
+    if (!settings.isSwipeEnabled) {
+      x.set(0);
+      return;
+    }
+
+    // If movement was predominantly vertical or not locked as horizontal, smoothly return
+    if (!dragGestureRef.current.isHorizontal) {
+      dragGestureRef.current = { isLocked: false, isHorizontal: false };
+      x.set(0);
+      return;
+    }
+
+    // Dynamic threshold: ~30% of card width (fallback to 90px if element not measured)
+    const cardWidth = cardRef.current?.getBoundingClientRect().width || 320;
+    const threshold = cardWidth * 0.3;
+
     const executeAction = (action: SwipeAction) => {
+      if (isExecutingActionRef.current) return;
+      isExecutingActionRef.current = true;
+
       if (action === 'purchase') {
         onUpdate({ isPurchased: !item.isPurchased });
       } else if (action === 'unavailable') {
@@ -378,6 +412,11 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         setMarketPickerStatus(getItemStatus());
         setShowMarketPicker(true);
       }
+
+      // Reset execution guard after slight cooldown to prevent double firing
+      setTimeout(() => {
+        isExecutingActionRef.current = false;
+      }, 350);
     };
 
     if (info.offset.x > threshold && settings.rightSwipeAction !== 'none') {
@@ -385,6 +424,10 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     } else if (info.offset.x < -threshold && settings.leftSwipeAction !== 'none') {
       executeAction(settings.leftSwipeAction);
     }
+
+    // Always reset gesture tracking and return card smoothly
+    dragGestureRef.current = { isLocked: false, isHorizontal: false };
+    x.set(0);
   };
 
   if (isViewMode) {
@@ -478,6 +521,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   return (
     <div 
+      ref={cardRef}
       style={{
         backgroundColor: defaultCardBg,
         borderColor: itemCardBorder
@@ -529,14 +573,20 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       <motion.div
         drag={settings.isSwipeEnabled ? "x" : false}
         dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.7}
+        dragElastic={0.65}
+        dragTransition={{ bounceStiffness: 400, bounceDamping: 35 }}
         onDragStart={() => cancelLongPress()}
         onDragEnd={handleDragEnd}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
-        onPointerLeave={cancelLongPress}
+        onPointerLeave={() => {
+          cancelLongPress();
+          if (!isExecutingActionRef.current) {
+            x.set(0);
+          }
+        }}
         style={{ x, background }}
         className={`relative flex items-center py-2.5 sm:py-3 px-3 z-10 touch-pan-y transition-colors rounded-xl ${
           isLongPressing ? 'bg-blue-50/40' : !item.isAvailable ? 'bg-gray-50/50' : ''

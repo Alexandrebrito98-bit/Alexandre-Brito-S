@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ShoppingList, Language } from '../types';
 import { getTranslation } from '../i18n';
 import { AppThemeConfig } from '../utils/appThemes';
@@ -133,12 +133,27 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
     setActionMenuTargetId(null);
   };
 
+  // Lock background scroll when modal is mounted
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.touchAction = originalTouchAction;
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-[70] flex items-start justify-center pt-2 sm:pt-6 px-2 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
+      onClick={onClose}
+    >
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Main Container */}
@@ -147,7 +162,7 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
           backgroundColor: themeConfig.colors.card,
           color: themeConfig.colors.text
         }}
-        className="relative w-full max-w-sm sm:max-w-md rounded-t-[2.2rem] sm:rounded-[2.2rem] p-6 shadow-2xl animate-in slide-in-from-bottom duration-200 border-0 flex flex-col max-h-[88vh]"
+        className="relative w-full max-w-sm sm:max-w-md rounded-[2rem] p-5 sm:p-6 shadow-2xl animate-in slide-in-from-top duration-300 border-0 flex flex-col max-h-[85vh] z-10 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -387,7 +402,7 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
           <form onSubmit={handleSaveCreate} className="space-y-4 pt-1">
             <div>
               <label 
-                style={{ color: themeConfig.colors.primary }}
+                style={{ color: themeConfig.colors.sectionTitle }}
                 className="text-[11px] font-bold uppercase tracking-wider block mb-1.5"
               >
                 {t.listNamePlaceholder}
@@ -409,7 +424,7 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
             {/* Seletor de Ícones */}
             <div>
               <label 
-                style={{ color: themeConfig.colors.textSecondary }}
+                style={{ color: themeConfig.colors.sectionTitle }}
                 className="text-[11px] font-bold uppercase tracking-wider block mb-2"
               >
                 {t.listIcon}
@@ -469,7 +484,7 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
           <form onSubmit={handleSaveEdit} className="space-y-4 pt-1">
             <div>
               <label 
-                style={{ color: themeConfig.colors.primary }}
+                style={{ color: themeConfig.colors.sectionTitle }}
                 className="text-[11px] font-bold uppercase tracking-wider block mb-1.5"
               >
                 {t.renameList}
@@ -491,7 +506,7 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
             {/* Seletor de Ícones */}
             <div>
               <label 
-                style={{ color: themeConfig.colors.textSecondary }}
+                style={{ color: themeConfig.colors.sectionTitle }}
                 className="text-[11px] font-bold uppercase tracking-wider block mb-2"
               >
                 {t.listIcon}

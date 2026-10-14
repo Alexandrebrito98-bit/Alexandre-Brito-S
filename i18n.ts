@@ -125,6 +125,10 @@ export const translations = {
     historyItemsCount: (count: number) => `${count} itens`,
     viewItems: 'Visualizar itens',
     deleteHistory: 'Excluir histórico',
+    deleteHistoryConfirmTitle: 'Excluir este histórico?',
+    deleteHistoryConfirmDesc: 'Essa ação não pode ser desfeita.',
+    itemRemovedFromList: (name: string) => `${name} removido da lista`,
+    removeItemFromList: 'Remover da lista',
 
     // Favorites & Most Purchased
     favoritesTitle: 'Favoritos',
@@ -319,6 +323,10 @@ export const translations = {
     historyItemsCount: (count: number) => `${count} items`,
     viewItems: 'View items',
     deleteHistory: 'Delete history',
+    deleteHistoryConfirmTitle: 'Delete this history?',
+    deleteHistoryConfirmDesc: 'This action cannot be undone.',
+    itemRemovedFromList: (name: string) => `${name} removed from list`,
+    removeItemFromList: 'Remove from list',
 
     // Favorites & Most Purchased
     favoritesTitle: 'Favorites',

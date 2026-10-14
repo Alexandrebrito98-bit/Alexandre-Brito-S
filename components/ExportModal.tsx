@@ -16,6 +16,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
   const [showSaveOptions, setShowSaveOptions] = useState(false);
   const t = getTranslation(lang);
 
+  // Lock body scroll when modal is mounted
+  React.useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.touchAction = originalTouchAction;
+    };
+  }, []);
+
   const cardBg = themeConfig?.colors.card || '#FFFFFF';
   const textColor = themeConfig?.colors.text || '#0F172A';
   const textSecondaryColor = themeConfig?.colors.textSecondary || '#64748B';
@@ -23,14 +35,24 @@ export const ExportModal: React.FC<ExportModalProps> = ({ onConfirm, onSaveHisto
   const inputBg = themeConfig?.colors.inputBg || '#F1F5F9';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <div 
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 touch-none select-none overflow-hidden"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+    >
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" 
+        onClick={onClose} 
+      />
       <div 
         style={{
           backgroundColor: cardBg,
           color: textColor
         }}
-        className="relative w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 border-0 shadow-none animate-in slide-in-from-bottom duration-300"
+        className="relative w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 border-0 shadow-none animate-in slide-in-from-bottom duration-300 z-10 touch-auto select-auto"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="w-12 h-1.5 rounded-full mx-auto mb-6 sm:hidden opacity-30" style={{ backgroundColor: textSecondaryColor }} onClick={onClose} />
         

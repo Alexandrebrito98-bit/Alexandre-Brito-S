@@ -169,6 +169,7 @@ const App: React.FC = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [deletedItemInfo, setDeletedItemInfo] = useState<{ item: ShoppingItem; originalIndex: number } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [historyAddedMap, setHistoryAddedMap] = useState<Record<string, { wasExisting: boolean }>>({});
   const [editingItemState, setEditingItemState] = useState<{
     active: boolean;
     mode?: 'hold' | 'edit';
@@ -386,7 +387,7 @@ const App: React.FC = () => {
       searchTerm: '',
       savedHistory: []
     };
-    setLists(prev => [...prev, newList]);
+    setLists(prev => [newList, ...prev]);
     setActiveListId(newList.id);
     setSearchTerm('');
     showToast(t.listCreated(newList.name));
@@ -591,14 +592,21 @@ const App: React.FC = () => {
     inputRef.current?.focus();
   }, [newItemName, newItemQty, newItemPrice, items, isNewItemPurchased, isNewItemUnavailable, t]);
 
-  const handleAddItemFromSettings = useCallback((itemData: { name: string; quantity?: number; unitPrice?: number }) => {
+  const handleAddItemFromSettings = useCallback((itemData: { name: string; quantity?: number; unitPrice?: number }, fromHistory?: boolean) => {
     const rawName = itemData.name.trim();
     if (!rawName) return;
     const qty = itemData.quantity && itemData.quantity > 0 ? itemData.quantity : 1;
     const price = itemData.unitPrice && itemData.unitPrice >= 0 ? itemData.unitPrice : 0;
+    const lowerName = rawName.toLowerCase();
 
     setItems(prev => {
-      const existing = prev.find(i => i.name.toLowerCase() === rawName.toLowerCase());
+      const existing = prev.find(i => i.name.toLowerCase() === lowerName);
+      if (fromHistory) {
+        setHistoryAddedMap(m => ({
+          ...m,
+          [lowerName]: { wasExisting: Boolean(existing) }
+        }));
+      }
       if (existing) {
         return prev.map(i => i.id === existing.id ? {
           ...i,
@@ -620,6 +628,40 @@ const App: React.FC = () => {
       return [newItem, ...prev];
     });
     showToast(t.itemAddedToList(rawName));
+  }, [showToast, t]);
+
+  const handleRevertItemFromSettings = useCallback((itemName: string, wasExistingBeforeAdd: boolean) => {
+    const rawName = itemName.trim();
+    if (!rawName) return;
+    const lowerName = rawName.toLowerCase();
+
+    setItems(prev => {
+      const existingIndex = prev.findIndex(i => i.name.toLowerCase() === lowerName);
+      if (existingIndex < 0) return prev;
+
+      const existing = prev[existingIndex];
+      // If it existed before adding from history and quantity > 1, decrement quantity by 1
+      if (wasExistingBeforeAdd && existing.quantity > 1) {
+        const next = [...prev];
+        next[existingIndex] = {
+          ...existing,
+          quantity: existing.quantity - 1,
+          addedAt: Date.now()
+        };
+        return next;
+      } else {
+        // Otherwise remove the item completely from the list
+        return prev.filter(i => i.id !== existing.id);
+      }
+    });
+
+    setHistoryAddedMap(m => {
+      const next = { ...m };
+      delete next[lowerName];
+      return next;
+    });
+
+    showToast(t.itemRemovedFromList ? t.itemRemovedFromList(rawName) : `${rawName} removido da lista`);
   }, [showToast, t]);
 
   const handleAddMultipleItemsFromSettings = useCallback((itemsData: { name: string; quantity?: number; unitPrice?: number }[]) => {
@@ -1333,7 +1375,7 @@ const App: React.FC = () => {
                     >
                       <div className="flex items-center gap-2">
                         <span 
-                          style={{ color: activeAppTheme.colors.primary }}
+                          style={{ color: activeAppTheme.colors.sectionTitle }}
                           className="uppercase text-[10px] tracking-wider font-extrabold"
                         >
                           {t.totalLabel}
@@ -1427,7 +1469,7 @@ const App: React.FC = () => {
                       className="px-3 py-1.5 flex items-center justify-between"
                     >
                       <span 
-                        style={{ color: activeAppTheme.colors.primary }}
+                        style={{ color: activeAppTheme.colors.sectionTitle }}
                         className="text-[10px] font-bold uppercase tracking-wider"
                       >
                         {t.sortByLabel}
@@ -1516,9 +1558,9 @@ const App: React.FC = () => {
                       <span className="text-base shrink-0 leading-none" role="img" aria-hidden="true">
                         {group.category.icon}
                       </span>
-                      {/* Títulos de seção em maiúsculas, na cor primária, com espaçamento entre letras */}
+                      {/* Títulos de seção em maiúsculas, na cor sóbria do tema */}
                       <span 
-                        style={{ color: activeAppTheme.colors.primary }}
+                        style={{ color: activeAppTheme.colors.sectionTitle }}
                         className="text-[11px] font-extrabold uppercase tracking-wider truncate"
                       >
                         {getCategoryDisplayName(group.category, currentLang)}
@@ -1826,6 +1868,8 @@ const App: React.FC = () => {
           onClose={() => setShowSettings(false)} 
           onAddItemToList={handleAddItemFromSettings}
           onAddMultipleItemsToList={handleAddMultipleItemsFromSettings}
+          onRevertItemFromList={handleRevertItemFromSettings}
+          historyAddedMap={historyAddedMap}
           currentItems={items}
           activeListName={activeList.name}
           activeListHistory={activeList.savedHistory || []}
@@ -1847,14 +1891,24 @@ const App: React.FC = () => {
 
       
       {showClearConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center animate-in fade-in">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowClearConfirm(false)} />
+        <div 
+          className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center animate-in fade-in touch-none select-none overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" 
+            onClick={() => setShowClearConfirm(false)} 
+          />
           <div 
             style={{
               backgroundColor: activeAppTheme.colors.card,
               color: activeAppTheme.colors.text
             }}
-            className="relative w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300 border-0"
+            className="relative w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl animate-in slide-in-from-bottom duration-300 border-0 z-10 touch-auto select-auto"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-1.5 bg-gray-300/40 rounded-full mx-auto mb-6 sm:hidden" onClick={() => setShowClearConfirm(false)} />
             <h2 
