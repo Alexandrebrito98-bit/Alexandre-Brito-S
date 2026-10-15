@@ -19,6 +19,8 @@ import {
   TEXTURE_OPTIONS 
 } from './utils/themePresets';
 import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME, AppThemeConfig } from './utils/appThemes';
+import { useAuth } from './components/AuthGate';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 const MULTI_LISTS_KEY = 'superlist_multi_lists';
 const ACTIVE_LIST_KEY = 'superlist_active_list_id';
@@ -27,6 +29,10 @@ const SETTINGS_KEY = 'superlist_settings';
 const VIEW_SORT_KEY = 'superlist_view_sort_mode';
 
 const App: React.FC = () => {
+  const { user, userName, userEmail, signOut, isOfflineMode } = useAuth();
+  const isInitialSyncDoneRef = useRef(false);
+  const saveDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [lists, setLists] = useState<ShoppingList[]>(() => {
     try {
       const saved = localStorage.getItem(MULTI_LISTS_KEY);
@@ -366,6 +372,110 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(VIEW_SORT_KEY, viewSortOption);
   }, [viewSortOption]);
+
+  // Carregamento inicial dos dados da nuvem do Supabase na tabela public.user_data
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured || isOfflineMode) {
+      isInitialSyncDoneRef.current = true;
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadUserData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_data')
+          .select('data, updated_at')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (!isMounted) return;
+
+        if (error) {
+          console.warn('Aviso ao carregar dados do usuário no Supabase:', error.message);
+        }
+
+        if (data && data.data && typeof data.data === 'object') {
+          const remote = data.data as any;
+          if (Array.isArray(remote.lists) && remote.lists.length > 0) {
+            setLists(remote.lists);
+          }
+          if (remote.activeListId) {
+            setActiveListId(remote.activeListId);
+          }
+          if (remote.settings) {
+            setSettings(prev => ({ ...prev, ...remote.settings }));
+          }
+          if (remote.viewSortOption) {
+            setViewSortOption(remote.viewSortOption);
+          }
+        } else {
+          // Se existirem dados locais e o usuário não tiver linha na tabela, envia-os na primeira vez
+          try {
+            await supabase.from('user_data').upsert({
+              user_id: user.id,
+              data: {
+                lists,
+                activeListId,
+                settings,
+                viewSortOption
+              },
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id' });
+          } catch (upsertErr) {
+            console.warn('Erro ao inicializar dados na nuvem:', upsertErr);
+          }
+        }
+      } catch (err) {
+        console.error('Falha na sincronização inicial com Supabase:', err);
+      } finally {
+        if (isMounted) {
+          isInitialSyncDoneRef.current = true;
+        }
+      }
+    };
+
+    loadUserData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, isOfflineMode]);
+
+  // Sincronização automática com debounce de 1 segundo para a tabela public.user_data
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured || isOfflineMode || !isInitialSyncDoneRef.current) {
+      return;
+    }
+
+    if (saveDebounceTimerRef.current) {
+      clearTimeout(saveDebounceTimerRef.current);
+    }
+
+    saveDebounceTimerRef.current = setTimeout(async () => {
+      try {
+        await supabase.from('user_data').upsert({
+          user_id: user.id,
+          data: {
+            lists,
+            activeListId,
+            settings,
+            viewSortOption
+          },
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+      } catch (err) {
+        console.warn('Erro no salvamento automático para o Supabase:', err);
+      }
+    }, 1000);
+
+    return () => {
+      if (saveDebounceTimerRef.current) {
+        clearTimeout(saveDebounceTimerRef.current);
+      }
+    };
+  }, [lists, activeListId, settings, viewSortOption, user?.id, isOfflineMode]);
 
   const handleSelectList = useCallback((id: string) => {
     setActiveListId(id);
@@ -1012,6 +1122,8 @@ const App: React.FC = () => {
         activeListName={activeList.name}
         activeListIcon={activeList.icon}
         onOpenListMenu={() => setShowListMenu(true)}
+        userName={userName}
+        onSignOut={signOut}
       />
 
       <main className="flex-1 px-4 py-2 space-y-3 max-w-lg mx-auto w-full">
@@ -1876,6 +1988,9 @@ const App: React.FC = () => {
           onUpdateActiveListHistory={handleUpdateActiveListHistory}
           allListsHistory={lists.flatMap(l => l.savedHistory || [])}
           allListsItems={lists.flatMap(l => l.items || [])}
+          userName={userName}
+          userEmail={userEmail}
+          onSignOut={signOut}
         />
       )}
       {showExportModal && (

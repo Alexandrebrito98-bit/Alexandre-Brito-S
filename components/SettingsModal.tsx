@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppSettings, SavedList, SwipeAction, FavoriteProduct, ShoppingItem } from '../types';
-import { X, Check, Plus, Trash2, Trophy, Star, Palette, ChevronRight, ArrowUpDown } from 'lucide-react';
+import { X, Check, Plus, Trash2, Trophy, Star, Palette, ChevronRight, ArrowUpDown, HelpCircle, LogOut, User } from 'lucide-react';
 import { getTranslation } from '../i18n';
 import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME } from '../utils/appThemes';
+import { AppGuideModal } from './AppGuideModal';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -18,6 +19,9 @@ interface SettingsModalProps {
   onUpdateActiveListHistory?: (history: SavedList[]) => void;
   allListsHistory?: SavedList[];
   allListsItems?: ShoppingItem[];
+  userName?: string;
+  userEmail?: string;
+  onSignOut?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -33,7 +37,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   activeListHistory,
   onUpdateActiveListHistory,
   allListsHistory,
-  allListsItems
+  allListsItems,
+  userName,
+  userEmail,
+  onSignOut
 }) => {
   const [localSettings, setLocalSettings] = useState<AppSettings>({
     ...settings,
@@ -59,6 +66,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [viewingHistory, setViewingHistory] = useState<SavedList | null>(null);
   const [showFavoritesModal, setShowFavoritesModal] = useState(false);
   const [showMostPurchasedModal, setShowMostPurchasedModal] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const [historyToast, setHistoryToast] = useState<string | null>(null);
   const historyToastTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -731,15 +739,90 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             
             <div className="space-y-6 overflow-y-auto max-h-[70vh] pb-4 custom-scrollbar pr-1">
               
-              {/* Language Section (Opção de Idioma compacta: PT e US) */}
-              <div>
+              {/* Cartão de Usuário Conectado com Botão Sair Discreto */}
+              {userName && (
                 <div 
                   style={{
                     backgroundColor: currentAppTheme.colors.inputBg
                   }}
-                  className="px-5 py-4 rounded-3xl flex items-center justify-between gap-3 border-0"
+                  className="px-4 py-3.5 rounded-3xl flex items-center justify-between gap-3 border-0"
                 >
-                  <div className="min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div 
+                      style={{
+                        backgroundColor: currentAppTheme.colors.card,
+                        color: currentAppTheme.colors.primary
+                      }}
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm uppercase shrink-0 shadow-sm"
+                    >
+                      {userName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <span 
+                        style={{ color: currentAppTheme.colors.sectionTitle }}
+                        className="text-[10px] font-bold uppercase tracking-wider block"
+                      >
+                        Conta Conectada
+                      </span>
+                      <h4 
+                        style={{ color: currentAppTheme.colors.text }}
+                        className="text-xs sm:text-sm font-bold truncate"
+                      >
+                        {userName}
+                      </h4>
+                      {userEmail && (
+                        <p 
+                          style={{ color: currentAppTheme.colors.textSecondary }}
+                          className="text-[10px] font-medium truncate"
+                        >
+                          {userEmail}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {onSignOut && (
+                    <button
+                      type="button"
+                      onClick={onSignOut}
+                      style={{
+                        backgroundColor: currentAppTheme.colors.card,
+                        color: currentAppTheme.colors.textSecondary
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 border-0 hover:text-red-500 cursor-pointer shrink-0 shadow-none"
+                      title="Sair da conta"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sair</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Language Section with Guide Button on Left (ao lado esquerdo do card Idioma) */}
+              <div className="flex items-stretch gap-2.5">
+                {/* Botão de ícone (ponto de interrogação) para "Como usar o app" ao lado esquerdo do card Idioma */}
+                <button
+                  type="button"
+                  onClick={() => setShowGuideModal(true)}
+                  style={{
+                    backgroundColor: currentAppTheme.colors.inputBg,
+                    color: currentAppTheme.colors.primary
+                  }}
+                  className="w-14 min-w-[56px] min-h-[56px] rounded-3xl flex items-center justify-center transition-all active:scale-95 border-0 shadow-none cursor-pointer shrink-0"
+                  aria-label={t.howToUseApp || 'Como usar o app'}
+                  title={t.howToUseApp || 'Como usar o app'}
+                >
+                  <HelpCircle className="w-6 h-6 stroke-[2.2]" />
+                </button>
+
+                <div 
+                  style={{
+                    backgroundColor: currentAppTheme.colors.inputBg
+                  }}
+                  className="flex-1 px-4 sm:px-5 py-4 rounded-3xl flex items-center justify-between gap-2.5 sm:gap-3 border-0 min-w-0"
+                >
+                  <div className="min-w-0 flex-1">
                     <label 
                       style={{ color: currentAppTheme.colors.sectionTitle }}
                       className="text-xs font-bold uppercase tracking-wider block"
@@ -769,7 +852,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         backgroundColor: currentAppTheme.colors.card,
                         color: currentAppTheme.colors.textSecondary
                       }}
-                      className="w-11 h-9 rounded-xl text-xs font-bold flex items-center justify-center transition-all active:scale-95 border-0 shadow-none"
+                      className="w-11 h-9 rounded-xl text-xs font-bold flex items-center justify-center transition-all active:scale-95 border-0 shadow-none cursor-pointer"
                       aria-label="Português (PT)"
                     >
                       PT
@@ -789,7 +872,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         backgroundColor: currentAppTheme.colors.card,
                         color: currentAppTheme.colors.textSecondary
                       }}
-                      className="w-11 h-9 rounded-xl text-xs font-bold flex items-center justify-center transition-all active:scale-95 border-0 shadow-none"
+                      className="w-11 h-9 rounded-xl text-xs font-bold flex items-center justify-center transition-all active:scale-95 border-0 shadow-none cursor-pointer"
                       aria-label="English (US)"
                     >
                       US
@@ -1877,6 +1960,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Janela de Guia Rápido e Visual "Como usar o app" */}
+      <AppGuideModal 
+        isOpen={showGuideModal} 
+        onClose={() => setShowGuideModal(false)} 
+        lang={currentLang} 
+        themeConfig={currentAppTheme} 
+      />
     </div>
   );
 };

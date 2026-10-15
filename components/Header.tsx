@@ -3,7 +3,7 @@ import { FilterStatus, Language } from '../types';
 import { AppLogo } from './AppLogo';
 import { getTranslation } from '../i18n';
 import { AppThemeConfig } from '../utils/appThemes';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, User, LogOut } from 'lucide-react';
 
 interface HeaderProps {
   itemCount: number;
@@ -24,6 +24,8 @@ interface HeaderProps {
   activeListName?: string;
   activeListIcon?: string;
   onOpenListMenu?: () => void;
+  userName?: string;
+  onSignOut?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -44,7 +46,9 @@ export const Header: React.FC<HeaderProps> = ({
   themeConfig,
   activeListName,
   activeListIcon,
-  onOpenListMenu
+  onOpenListMenu,
+  userName,
+  onSignOut
 }) => {
   const t = getTranslation(lang);
   const themeBlue = themeConfig?.colors.primary || primaryColor || '#2563eb';
@@ -92,6 +96,21 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="truncate">{activeListName}</span>
                 <ChevronDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
               </button>
+            )}
+
+            {/* Nome do usuário autenticado */}
+            {userName && (
+              <div 
+                style={{
+                  backgroundColor: themeConfig ? themeConfig.colors.inputBg : '#F3F4F6',
+                  color: themeConfig ? themeConfig.colors.textSecondary : '#4B5563'
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold max-w-[140px] sm:max-w-[180px] shrink-0 border-0"
+                title={`Conectado como ${userName}`}
+              >
+                <User className="w-3.5 h-3.5 opacity-60 shrink-0" />
+                <span className="truncate text-[11px]">{userName}</span>
+              </div>
             )}
           </div>
           {!isViewMode && (
@@ -164,6 +183,22 @@ export const Header: React.FC<HeaderProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
+
+          {/* Botão Sair discreto */}
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              style={themeConfig ? {
+                backgroundColor: themeConfig.colors.inputBg,
+                color: themeConfig.colors.textSecondary
+              } : undefined}
+              className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 hover:text-red-500 cursor-pointer"
+              title="Sair da conta"
+              aria-label="Sair da conta"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
       

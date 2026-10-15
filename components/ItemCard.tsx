@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShoppingItem, AppSettings, SwipeAction } from '../types';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'motion/react';
 import { Store, Check, X, ChevronDown } from 'lucide-react';
 import { getTranslation } from '../i18n';
 import { APP_THEMES, DEFAULT_APP_THEME, AppThemeId } from '../utils/appThemes';
@@ -224,7 +224,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     cancelLongPress();
     // Interrupted touch -> smoothly return item without triggering action
     dragGestureRef.current = { isLocked: false, isHorizontal: false };
-    x.set(0);
+    animate(x, 0, { type: 'spring', stiffness: 450, damping: 35 });
   };
 
   useEffect(() => {
@@ -349,6 +349,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 
   const renderSwipeIcon = (action: SwipeAction) => {
     if (action === 'purchase') {
+      const isAlreadyPurchased = item.isPurchased && item.isAvailable;
+      if (isAlreadyPurchased) {
+        return (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2m-15-7l4-4m-4 4l4 4" />
+          </svg>
+        );
+      }
       return (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -356,6 +364,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       );
     }
     if (action === 'unavailable') {
+      const isAlreadyUnavailable = !item.isAvailable;
+      if (isAlreadyUnavailable) {
+        return (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a5 5 0 015 5v2m-15-7l4-4m-4 4l4 4" />
+          </svg>
+        );
+      }
       return (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -373,8 +389,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   };
 
   const getSwipeLabel = (action: SwipeAction) => {
-    if (action === 'purchase') return t.swipeBuy;
-    if (action === 'unavailable') return t.swipeUnavailable;
+    if (action === 'purchase') {
+      const isAlreadyPurchased = item.isPurchased && item.isAvailable;
+      return isAlreadyPurchased ? (t.swipeUnmark || 'Desmarcar') : t.swipeBuy;
+    }
+    if (action === 'unavailable') {
+      const isAlreadyUnavailable = !item.isAvailable;
+      return isAlreadyUnavailable ? (t.swipeUnmark || 'Desmarcar') : t.swipeUnavailable;
+    }
     if (action === 'market') return 'Mercado';
     if (action === 'delete') return t.swipeDelete;
     return '';
@@ -383,14 +405,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const handleDragEnd = (_: any, info: any) => {
     cancelLongPress();
     if (!settings.isSwipeEnabled) {
-      x.set(0);
+      animate(x, 0, { type: 'spring', stiffness: 450, damping: 35 });
       return;
     }
 
-    // If movement was predominantly vertical or not locked as horizontal, smoothly return
+    // Se o movimento foi predominantemente vertical ou não travado na horizontal, volta suavemente
     if (!dragGestureRef.current.isHorizontal) {
       dragGestureRef.current = { isLocked: false, isHorizontal: false };
-      x.set(0);
+      animate(x, 0, { type: 'spring', stiffness: 450, damping: 35 });
       return;
     }
 
@@ -403,9 +425,23 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       isExecutingActionRef.current = true;
 
       if (action === 'purchase') {
-        onUpdate({ isPurchased: !item.isPurchased });
+        const isAlreadyPurchased = item.isPurchased && item.isAvailable;
+        if (isAlreadyPurchased) {
+          // Se já está Comprado, desmarca e volta para "Para comprar"
+          onUpdate({ isPurchased: false, isAvailable: true });
+        } else {
+          // Se não está Comprado (estava Para comprar ou Indisponível), marca como Comprado
+          onUpdate({ isPurchased: true, isAvailable: true });
+        }
       } else if (action === 'unavailable') {
-        onUpdate({ isAvailable: !item.isAvailable });
+        const isAlreadyUnavailable = !item.isAvailable;
+        if (isAlreadyUnavailable) {
+          // Se já está Indisponível, desmarca e volta para "Para comprar"
+          onUpdate({ isPurchased: false, isAvailable: true });
+        } else {
+          // Se não está Indisponível (estava Para comprar ou Comprado), marca como Indisponível
+          onUpdate({ isAvailable: false, isPurchased: false });
+        }
       } else if (action === 'delete') {
         setShowDeleteConfirm(true);
       } else if (action === 'market') {
@@ -425,9 +461,9 @@ export const ItemCard: React.FC<ItemCardProps> = ({
       executeAction(settings.leftSwipeAction);
     }
 
-    // Always reset gesture tracking and return card smoothly
+    // Sempre reseta rastreamento e retorna o card suavemente
     dragGestureRef.current = { isLocked: false, isHorizontal: false };
-    x.set(0);
+    animate(x, 0, { type: 'spring', stiffness: 450, damping: 35 });
   };
 
   if (isViewMode) {
@@ -584,7 +620,7 @@ export const ItemCard: React.FC<ItemCardProps> = ({
         onPointerLeave={() => {
           cancelLongPress();
           if (!isExecutingActionRef.current) {
-            x.set(0);
+            animate(x, 0, { type: 'spring', stiffness: 450, damping: 35 });
           }
         }}
         style={{ x, background }}
@@ -635,8 +671,14 @@ export const ItemCard: React.FC<ItemCardProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               <button 
-                onClick={() => handleAction(() => onUpdate({ isPurchased: !item.isPurchased }))}
-                title={item.isPurchased ? t.markToBuy : t.markPurchased}
+                onClick={() => handleAction(() => {
+                  if (item.isPurchased && item.isAvailable) {
+                    onUpdate({ isPurchased: false, isAvailable: true });
+                  } else {
+                    onUpdate({ isPurchased: true, isAvailable: true });
+                  }
+                })}
+                title={item.isPurchased && item.isAvailable ? t.markToBuy : t.markPurchased}
                 style={item.isPurchased && item.isAvailable ? {
                   backgroundColor: '#16a34a',
                   color: '#FFFFFF'
@@ -664,7 +706,13 @@ export const ItemCard: React.FC<ItemCardProps> = ({
                 </svg>
               </button>
               <button 
-                onClick={() => handleAction(() => onUpdate({ isAvailable: !item.isAvailable }))}
+                onClick={() => handleAction(() => {
+                  if (!item.isAvailable) {
+                    onUpdate({ isAvailable: true, isPurchased: false });
+                  } else {
+                    onUpdate({ isAvailable: false, isPurchased: false });
+                  }
+                })}
                 title={!item.isAvailable ? t.markAvailable : t.markUnavailable}
                 style={!item.isAvailable ? {
                   backgroundColor: '#EAB308',

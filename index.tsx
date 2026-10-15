@@ -2,6 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { AuthGate } from './components/AuthGate';
 import { registerSW } from 'virtual:pwa-register';
 
 // Registra e atualiza automaticamente o Service Worker para garantir novos ícones de forma transparente
@@ -27,6 +28,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <AuthGate>
+      <App />
+    </AuthGate>
   </React.StrictMode>
 );

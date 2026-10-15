@@ -85,6 +85,7 @@ export const translations = {
     swipeBuy: 'Comprado',
     swipeUnavailable: 'Indisponível',
     swipeDelete: 'Excluir',
+    swipeUnmark: 'Desmarcar',
 
     // Settings
     settingsTitle: 'Configurações',
@@ -129,6 +130,11 @@ export const translations = {
     deleteHistoryConfirmDesc: 'Essa ação não pode ser desfeita.',
     itemRemovedFromList: (name: string) => `${name} removido da lista`,
     removeItemFromList: 'Remover da lista',
+    howToUseApp: 'Como usar o app',
+    guideTitle: 'Como usar o app',
+    guideSubtitle: 'Guia visual e rápido de todas as funções',
+    expandAll: 'Expandir todos',
+    collapseAll: 'Recolher todos',
 
     // Favorites & Most Purchased
     favoritesTitle: 'Favoritos',
@@ -283,6 +289,7 @@ export const translations = {
     swipeBuy: 'Purchased',
     swipeUnavailable: 'Unavailable',
     swipeDelete: 'Delete',
+    swipeUnmark: 'Unmark',
 
     // Settings
     settingsTitle: 'Settings',
@@ -327,6 +334,11 @@ export const translations = {
     deleteHistoryConfirmDesc: 'This action cannot be undone.',
     itemRemovedFromList: (name: string) => `${name} removed from list`,
     removeItemFromList: 'Remove from list',
+    howToUseApp: 'How to use the app',
+    guideTitle: 'How to use the app',
+    guideSubtitle: 'Visual and quick guide to all features',
+    expandAll: 'Expand all',
+    collapseAll: 'Collapse all',
 
     // Favorites & Most Purchased
     favoritesTitle: 'Favorites',
