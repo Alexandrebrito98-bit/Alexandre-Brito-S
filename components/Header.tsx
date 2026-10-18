@@ -3,7 +3,7 @@ import { FilterStatus, Language } from '../types';
 import { AppLogo } from './AppLogo';
 import { getTranslation } from '../i18n';
 import { AppThemeConfig } from '../utils/appThemes';
-import { ChevronDown, User, LogOut } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface HeaderProps {
   itemCount: number;
@@ -53,6 +53,19 @@ export const Header: React.FC<HeaderProps> = ({
   const t = getTranslation(lang);
   const themeBlue = themeConfig?.colors.primary || primaryColor || '#2563eb';
 
+  // Se houver nome cadastrado: "Lista de [nome]" (PT) ou "[nome]'s List" (EN)
+  // Se não houver nome (modo local / visitante): "Minha Lista" (PT) ou "My List" (EN)
+  const listTitle = React.useMemo(() => {
+    if (isViewMode) {
+      return t.summary;
+    }
+    const cleanName = (userName || '').trim();
+    if (!cleanName) {
+      return t.appName; // "Minha Lista" ou "My List"
+    }
+    return t.userListTitle ? t.userListTitle(cleanName) : (lang === 'en' ? `${cleanName}'s List` : `Lista de ${cleanName}`);
+  }, [isViewMode, t, userName, lang]);
+
   return (
     <header 
       style={themeConfig ? {
@@ -61,86 +74,36 @@ export const Header: React.FC<HeaderProps> = ({
       } : undefined}
       className="px-6 pt-6 pb-3 flex flex-col gap-4 transition-colors"
     >
+      {/* Linha superior: Título à esquerda e exatamente 2 botões à direita alinhados ao título */}
       <div className="flex justify-between items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2 sm:gap-2.5 truncate shrink-0">
-              <AppLogo 
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0" 
-                backgroundColor={themeConfig ? themeConfig.colors.primary : undefined}
-              />
-              <span 
-                className={`truncate leading-tight ${isViewMode ? 'uppercase tracking-wider font-extrabold' : ''}`}
-                style={themeConfig ? { color: isViewMode ? themeConfig.colors.primary : themeConfig.colors.text } : undefined}
-              >
-                {isViewMode ? t.summary : t.appName}
-              </span>
-            </h1>
+        <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+          <AppLogo 
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0" 
+            backgroundColor={themeConfig ? themeConfig.colors.primary : undefined}
+          />
+          <span 
+            className={`truncate leading-tight min-w-0 ${isViewMode ? 'uppercase tracking-wider font-extrabold' : ''}`}
+            style={themeConfig ? { color: isViewMode ? themeConfig.colors.primary : themeConfig.colors.text } : undefined}
+            title={listTitle}
+          >
+            {listTitle}
+          </span>
+        </h1>
 
-            {/* Nome da lista ativa com ícone de troca ao lado do título */}
-            {!isViewMode && activeListName && onOpenListMenu && (
-              <button
-                type="button"
-                onClick={onOpenListMenu}
-                style={{
-                  backgroundColor: themeConfig ? themeConfig.colors.inputBg : '#F3F4F6',
-                  color: themeConfig ? themeConfig.colors.text : '#111827'
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs sm:text-sm font-semibold transition-all active:scale-95 max-w-[170px] sm:max-w-[220px] border-0 shrink-0 cursor-pointer shadow-none"
-                title={`${t.switchList}: ${activeListName}`}
-                aria-label={`${t.switchList}: ${activeListName}`}
-              >
-                {activeListIcon && (
-                  <span className="text-sm shrink-0 leading-none">{activeListIcon}</span>
-                )}
-                <span className="truncate">{activeListName}</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
-              </button>
-            )}
-
-            {/* Nome do usuário autenticado */}
-            {userName && (
-              <div 
-                style={{
-                  backgroundColor: themeConfig ? themeConfig.colors.inputBg : '#F3F4F6',
-                  color: themeConfig ? themeConfig.colors.textSecondary : '#4B5563'
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold max-w-[140px] sm:max-w-[180px] shrink-0 border-0"
-                title={`Conectado como ${userName}`}
-              >
-                <User className="w-3.5 h-3.5 opacity-60 shrink-0" />
-                <span className="truncate text-[11px]">{userName}</span>
-              </div>
-            )}
-          </div>
-          {!isViewMode && (
-            <p 
-              className="text-xs sm:text-sm font-medium truncate mt-0.5"
-              style={{ color: themeConfig ? themeConfig.colors.textSecondary : undefined }}
-            >
-              {t.quickControl}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {isViewMode && (
-            <button 
-              onClick={onExport}
-              style={{ backgroundColor: themeConfig ? themeConfig.colors.inputBg : `${themeBlue}15`, color: themeBlue }}
-              className="w-10 h-10 flex items-center justify-center rounded-xl active:scale-95 transition-all"
-              aria-label={t.exportList}
-              title={t.exportList}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            </button>
-          )}
-
+        {/* Exatamente 2 botões alinhados à direita, alinhados ao título, sem empurrar o seletor */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Botão 1: Visualizar (olho) */}
           <button 
+            type="button"
             onClick={onToggleViewMode}
-            style={isViewMode ? { backgroundColor: themeBlue, color: '#FFFFFF' } : themeConfig ? { backgroundColor: themeConfig.colors.inputBg, color: themeConfig.colors.textSecondary } : undefined}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95"
+            style={isViewMode ? { 
+              backgroundColor: themeBlue, 
+              color: '#FFFFFF' 
+            } : themeConfig ? { 
+              backgroundColor: themeConfig.colors.inputBg, 
+              color: themeConfig.colors.textSecondary 
+            } : undefined}
+            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 cursor-pointer shadow-none shrink-0"
             title={t.viewMode}
             aria-label={t.viewMode}
           >
@@ -150,31 +113,15 @@ export const Header: React.FC<HeaderProps> = ({
             </svg>
           </button>
 
+          {/* Botão 2: Configurações (engrenagem) */}
           <button 
-            onClick={onClearList}
-            style={themeConfig ? {
-              backgroundColor: themeConfig.colors.deleteBg,
-              color: themeConfig.colors.deleteText
-            } : {
-              backgroundColor: '#FEE2E2',
-              color: '#DC2626'
-            }}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95"
-            title={t.clearList}
-            aria-label={t.clearList}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-          
-          <button 
+            type="button"
             onClick={onOpenSettings}
             style={themeConfig ? {
               backgroundColor: themeConfig.colors.inputBg,
               color: themeConfig.colors.textSecondary
             } : undefined}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95"
+            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 cursor-pointer shadow-none shrink-0"
             title={t.settingsTitle}
             aria-label={t.settingsTitle}
           >
@@ -183,24 +130,41 @@ export const Header: React.FC<HeaderProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
-
-          {/* Botão Sair discreto */}
-          {onSignOut && (
-            <button
-              onClick={onSignOut}
-              style={themeConfig ? {
-                backgroundColor: themeConfig.colors.inputBg,
-                color: themeConfig.colors.textSecondary
-              } : undefined}
-              className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 hover:text-red-500 cursor-pointer"
-              title="Sair da conta"
-              aria-label="Sair da conta"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
+
+      {/* Seletor "Mercado" em linha própria abaixo do título, com "Controle rápido" abaixo dele */}
+      {!isViewMode && (
+        <div className="flex flex-col gap-1 -mt-1">
+          {activeListName && onOpenListMenu && (
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={onOpenListMenu}
+                style={{
+                  backgroundColor: themeConfig ? themeConfig.colors.inputBg : '#F3F4F6',
+                  color: themeConfig ? themeConfig.colors.text : '#111827'
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all active:scale-95 border-0 cursor-pointer shadow-none max-w-full"
+                title={`${t.switchList}: ${activeListName}`}
+                aria-label={`${t.switchList}: ${activeListName}`}
+              >
+                {activeListIcon && (
+                  <span className="text-sm shrink-0 leading-none">{activeListIcon}</span>
+                )}
+                <span className="truncate">{activeListName}</span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
+              </button>
+            </div>
+          )}
+          <p 
+            className="text-xs sm:text-sm font-medium truncate"
+            style={{ color: themeConfig ? themeConfig.colors.textSecondary : undefined }}
+          >
+            {t.quickControl}
+          </p>
+        </div>
+      )}
       
       {isViewMode && (
         <div className="flex overflow-x-auto no-scrollbar gap-2 -mx-2 px-2 pb-1 animate-in fade-in duration-200">

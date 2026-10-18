@@ -12,6 +12,7 @@ interface AuthContextType {
   userEmail: string;
   signOut: () => Promise<void>;
   isOfflineMode: boolean;
+  updateUserName?: (newName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,8 +33,36 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOfflineBypass, setIsOfflineBypass] = useState(false);
+  const [liveUserName, setLiveUserName] = useState<string>(() => {
+    try {
+      return localStorage.getItem('compra_certa_user_name') || '';
+    } catch {
+      return '';
+    }
+  });
 
   const currentTheme = APP_THEMES[DEFAULT_APP_THEME];
+
+  useEffect(() => {
+    const handleNameChange = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (typeof customEvent.detail === 'string') {
+        const trimmed = customEvent.detail.trim();
+        setLiveUserName(trimmed);
+        try {
+          if (trimmed) {
+            localStorage.setItem('compra_certa_user_name', trimmed);
+          } else {
+            localStorage.removeItem('compra_certa_user_name');
+          }
+        } catch (_) {}
+      }
+    };
+    window.addEventListener('compra_certa:user-name-changed', handleNameChange);
+    return () => {
+      window.removeEventListener('compra_certa:user-name-changed', handleNameChange);
+    };
+  }, []);
 
   useEffect(() => {
     // Se o Supabase não estiver configurado nas variáveis de ambiente
@@ -51,6 +80,16 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
         console.warn('Erro ao obter sessão inicial:', error.message);
       }
       setSession(initialSession);
+      const metaNome = initialSession?.user?.user_metadata?.nome || initialSession?.user?.user_metadata?.name;
+      if (metaNome && typeof metaNome === 'string') {
+        const clean = metaNome.trim();
+        if (clean) {
+          setLiveUserName(clean);
+          try {
+            localStorage.setItem('compra_certa_user_name', clean);
+          } catch (_) {}
+        }
+      }
       setIsLoading(false);
     }).catch(() => {
       if (isMounted) setIsLoading(false);
@@ -60,6 +99,16 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       if (!isMounted) return;
       setSession(currentSession);
+      const metaNome = currentSession?.user?.user_metadata?.nome || currentSession?.user?.user_metadata?.name;
+      if (metaNome && typeof metaNome === 'string') {
+        const clean = metaNome.trim();
+        if (clean) {
+          setLiveUserName(clean);
+          try {
+            localStorage.setItem('compra_certa_user_name', clean);
+          } catch (_) {}
+        }
+      }
       setIsLoading(false);
     });
 
@@ -68,6 +117,30 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  const handleUpdateUserName = async (newName: string) => {
+    const trimmed = newName.trim();
+    setLiveUserName(trimmed);
+    try {
+      if (trimmed) {
+        localStorage.setItem('compra_certa_user_name', trimmed);
+      } else {
+        localStorage.removeItem('compra_certa_user_name');
+      }
+    } catch (_) {}
+
+    window.dispatchEvent(new CustomEvent('compra_certa:user-name-changed', { detail: trimmed }));
+
+    if (session && isSupabaseConfigured) {
+      try {
+        await supabase.auth.updateUser({
+          data: { nome: trimmed }
+        });
+      } catch (err) {
+        console.warn('Erro ao atualizar nome no Supabase:', err);
+      }
+    }
+  };
 
   // Função centralizada para encerrar a sessão
   const handleSignOut = async () => {
@@ -85,8 +158,10 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
         localStorage.removeItem('superlist_data');
         localStorage.removeItem('superlist_settings');
         localStorage.removeItem('superlist_view_sort_mode');
+        localStorage.removeItem('compra_certa_user_name');
       } catch (_) {}
       
+      setLiveUserName('');
       setSession(null);
       setIsOfflineBypass(false);
     }
@@ -104,7 +179,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
       >
         <div className="relative flex flex-col items-center animate-pulse">
           <AppLogo className="w-16 h-16 rounded-2xl shadow-xl mb-4" backgroundColor={currentTheme.colors.primary} />
-          <h2 className="text-xl font-bold tracking-tight mb-1">SuperList</h2>
+          <h2 className="text-xl font-bold tracking-tight mb-1">Compra Certa</h2>
           <p 
             style={{ color: currentTheme.colors.textSecondary }}
             className="text-xs font-medium"
@@ -126,8 +201,9 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   }
 
   const user = session?.user || null;
-  const userName = user?.user_metadata?.nome || user?.user_metadata?.name || user?.email?.split('@')[0] || (isOfflineBypass ? 'Visitante Local' : 'Usuário');
-  const userEmail = user?.email || (isOfflineBypass ? 'modo-local@superlist.app' : '');
+  const metaName = (user?.user_metadata?.nome || user?.user_metadata?.name || '')?.toString().trim();
+  const userName = metaName || liveUserName || '';
+  const userEmail = user?.email || (isOfflineBypass ? 'modo-local@compracerta.app' : '');
 
   const authValue: AuthContextType = {
     session,
@@ -135,7 +211,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     userName,
     userEmail,
     signOut: handleSignOut,
-    isOfflineMode: isOfflineBypass
+    isOfflineMode: isOfflineBypass,
+    updateUserName: handleUpdateUserName
   };
 
   return (

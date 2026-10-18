@@ -92,7 +92,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassOffline }) => {
       } else {
         setStep('otp');
         setToken('');
-        setSuccessMessage(`Código de 6 dígitos enviado para ${cleanEmail}`);
+        setSuccessMessage(`Código de acesso do Compra Certa enviado para ${cleanEmail}`);
         setResendCountdown(60);
       }
     } catch (err: any) {
@@ -125,6 +125,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassOffline }) => {
       if (error) {
         setErrorMessage(translateAuthError(error));
       } else if (data?.session) {
+        const cleanNome = nome.trim();
+        if (cleanNome) {
+          try {
+            localStorage.setItem('compra_certa_user_name', cleanNome);
+            window.dispatchEvent(new CustomEvent('compra_certa:user-name-changed', { detail: cleanNome }));
+            await supabase.auth.updateUser({
+              data: { nome: cleanNome }
+            });
+          } catch (_) {}
+        }
         setSuccessMessage('Acesso autorizado! Carregando seus dados...');
       }
     } catch (err: any) {
@@ -167,11 +177,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onBypassOffline }) => {
             <AppLogo className="w-14 h-14 rounded-2xl shadow-md" backgroundColor={currentAppTheme.colors.primary} />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-2">
-            SuperList
+            Compra Certa
           </h1>
           <p 
+            style={{ color: currentAppTheme.colors.primary }}
+            className="text-xs sm:text-sm font-bold tracking-wide uppercase mt-1 max-w-xs"
+          >
+            Lista e Orçamento
+          </p>
+          <p 
             style={{ color: currentAppTheme.colors.textSecondary }}
-            className="text-xs sm:text-sm font-medium mt-1 max-w-xs"
+            className="text-[11px] font-normal mt-0.5 max-w-xs opacity-80"
           >
             Acesso seguro sem senha via código enviado ao seu e-mail
           </p>

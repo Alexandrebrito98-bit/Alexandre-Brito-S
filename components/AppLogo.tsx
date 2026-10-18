@@ -16,7 +16,7 @@ export const AppLogo: React.FC<AppLogoProps> = ({ className = 'w-8 h-8', size = 
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="Ícone Supermercado e Lista de Compras"
+      aria-label="Compra Certa - Lista e Orçamento"
     >
       {/* Fundo Squircle com cor personalizada ou gradiente padrão */}
       <rect width="32" height="32" rx="8" fill={backgroundColor || "url(#superlist-app-logo-gradient)"} />

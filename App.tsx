@@ -882,7 +882,7 @@ const App: React.FC = () => {
       doc.text(`${t.pdfEstimatedTotal} ${currency} ${total.toLocaleString(locale, { minimumFractionDigits: 2 })}`, 14, currentY);
     }
 
-    doc.save(`SuperList_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`CompraCerta_${new Date().toISOString().split('T')[0]}.pdf`);
     setShowExportModal(false);
   }, [items, settings.currency, locale, t]);
 
@@ -1991,6 +1991,7 @@ const App: React.FC = () => {
           userName={userName}
           userEmail={userEmail}
           onSignOut={signOut}
+          onClearActiveList={(type) => clearList(type || 'all')}
         />
       )}
       {showExportModal && (

@@ -36,9 +36,9 @@ export default defineConfig(({ mode }) => {
           ],
           manifest: {
             id: '/',
-            name: 'SuperLista - Lista de Compras',
-            short_name: 'SuperLista',
-            description: 'Um gerenciador de lista de compras otimizado para uso móvel com uma mão, focado em rapidez, acessibilidade e clareza visual no supermercado.',
+            name: 'Compra Certa - Lista e Orçamento',
+            short_name: 'Compra Certa',
+            description: 'Compra Certa - Lista e Orçamento. Um gerenciador de lista de compras e orçamento otimizado para uso móvel com uma mão, focado em rapidez, acessibilidade e clareza visual no supermercado.',
             start_url: '/',
             scope: '/',
             display: 'standalone',

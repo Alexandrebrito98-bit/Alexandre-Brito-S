@@ -4,6 +4,7 @@ import { X, Check, Plus, Trash2, Trophy, Star, Palette, ChevronRight, ArrowUpDow
 import { getTranslation } from '../i18n';
 import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME } from '../utils/appThemes';
 import { AppGuideModal } from './AppGuideModal';
+import { supabase, isSupabaseConfigured } from '../supabase';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -22,6 +23,7 @@ interface SettingsModalProps {
   userName?: string;
   userEmail?: string;
   onSignOut?: () => void;
+  onClearActiveList?: (type?: 'all' | 'purchased' | 'unavailable') => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -40,7 +42,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   allListsItems,
   userName,
   userEmail,
-  onSignOut
+  onSignOut,
+  onClearActiveList
 }) => {
   const [localSettings, setLocalSettings] = useState<AppSettings>({
     ...settings,
@@ -73,6 +76,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Controle de itens adicionados a partir do histórico e diálogo de confirmação de exclusão
   const [localHistoryAdded, setLocalHistoryAdded] = useState<Record<string, { wasExisting: boolean }>>({});
   const [historyToDelete, setHistoryToDelete] = useState<SavedList | null>(null);
+  const [showClearListConfirm, setShowClearListConfirm] = useState(false);
+
+  // Edição rápida do Nome do Usuário
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInputValue, setNameInputValue] = useState(userName || '');
+
+  useEffect(() => {
+    setNameInputValue(userName || '');
+  }, [userName]);
+
+  const handleSaveName = async () => {
+    const trimmed = nameInputValue.trim();
+    try {
+      if (trimmed) {
+        localStorage.setItem('compra_certa_user_name', trimmed);
+      } else {
+        localStorage.removeItem('compra_certa_user_name');
+      }
+    } catch (_) {}
+    window.dispatchEvent(new CustomEvent('compra_certa:user-name-changed', { detail: trimmed }));
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.auth.updateUser({
+          data: { nome: trimmed }
+        });
+      } catch (err) {
+        console.warn('Erro ao atualizar nome no Supabase:', err);
+      }
+    }
+    setIsEditingName(false);
+  };
 
   // Estados para Favoritos e Rankings
   const [newFavName, setNewFavName] = useState('');
@@ -475,7 +509,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 touch-none select-none overflow-hidden"
+      className="fixed inset-0 z-[60] flex items-start justify-center pt-[max(env(safe-area-inset-top,16px),16px)] pb-[max(env(safe-area-inset-bottom,16px),16px)] px-3 sm:px-4 animate-in fade-in duration-200 touch-none select-none overflow-hidden"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
@@ -490,15 +524,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       />
       <div 
         style={{
+          maxHeight: '90dvh',
           backgroundColor: currentAppTheme.colors.card,
           color: currentAppTheme.colors.text
         }}
-        className="relative w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 animate-in slide-in-from-bottom duration-300 border-0 shadow-none z-10 touch-auto select-auto"
+        className="relative w-full max-w-md rounded-[2rem] border-0 shadow-2xl z-10 flex flex-col max-h-[90dvh] animate-in slide-in-from-top duration-300 overflow-hidden touch-auto select-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {viewingHistory ? (
-          <div className="flex flex-col h-full max-h-[80vh]">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-black/5 dark:border-white/5">
+          <div className="flex flex-col h-full min-h-0 flex-1 overflow-hidden">
+            <div className="p-5 sm:p-6 pb-3 sm:pb-4 border-b border-black/5 dark:border-white/5 shrink-0 flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <button 
                   onClick={() => setViewingHistory(null)}
@@ -622,7 +657,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            {/* Conteúdo no meio com rolagem vertical própria */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-5 sm:p-6 py-4 custom-scrollbar pr-3">
               {sortedViewingHistoryItems.map(item => {
                 const normName = item.name.trim().toLowerCase();
                 const currentItemInList = currentItems?.find(ci => ci.name.trim().toLowerCase() === normName);
@@ -701,18 +737,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               })}
             </div>
 
-            <div className="mt-4 pt-3 flex justify-between items-center border-t border-black/5 dark:border-white/5">
+            {/* 3. Rodapé fixo do histórico */}
+            <div className="p-5 sm:p-6 pt-3 sm:pt-4 flex justify-between items-center border-t border-black/5 dark:border-white/5 shrink-0">
               <span style={{ color: currentAppTheme.colors.sectionTitle }} className="text-xs font-bold uppercase tracking-wider">{t.savedItems} ({sortedViewingHistoryItems.length})</span>
               <span style={{ color: currentAppTheme.colors.text }} className="text-lg font-black">{localSettings.currency} {viewingHistory.totalValue.toLocaleString(locale, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         ) : (
-          <>
-            <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col h-full min-h-0 flex-1 overflow-hidden">
+            {/* 1. Cabeçalho fixo (título + X) */}
+            <div className="p-5 sm:p-6 pb-3 sm:pb-4 border-b border-black/5 dark:border-white/5 shrink-0 flex items-center justify-between">
               <div>
                 <h2 
                   style={{ color: currentAppTheme.colors.text }}
-                  className="text-xl font-bold"
+                  className="text-xl font-bold leading-tight"
                 >
                   {t.settingsTitle}
                 </h2>
@@ -729,7 +767,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   backgroundColor: currentAppTheme.colors.inputBg,
                   color: currentAppTheme.colors.textSecondary
                 }}
-                className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors active:scale-95 shrink-0 border-0"
+                className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors active:scale-95 shrink-0 border-0 cursor-pointer"
                 aria-label={t.close}
                 title={t.close}
               >
@@ -737,17 +775,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             </div>
             
-            <div className="space-y-6 overflow-y-auto max-h-[70vh] pb-4 custom-scrollbar pr-1">
+            {/* 2. Conteúdo no meio com rolagem vertical própria */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 py-4 space-y-6 custom-scrollbar pr-3">
               
               {/* Cartão de Usuário Conectado com Botão Sair Discreto */}
-              {userName && (
+              {(userName || userEmail) && (
                 <div 
                   style={{
                     backgroundColor: currentAppTheme.colors.inputBg
                   }}
                   className="px-4 py-3.5 rounded-3xl flex items-center justify-between gap-3 border-0"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div 
                       style={{
                         backgroundColor: currentAppTheme.colors.card,
@@ -755,47 +794,77 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }}
                       className="w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm uppercase shrink-0 shadow-sm"
                     >
-                      {userName.charAt(0).toUpperCase()}
+                      {(userName ? userName.charAt(0) : 'U').toUpperCase()}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span 
                         style={{ color: currentAppTheme.colors.sectionTitle }}
                         className="text-[10px] font-bold uppercase tracking-wider block"
                       >
                         Conta Conectada
                       </span>
-                      <h4 
-                        style={{ color: currentAppTheme.colors.text }}
-                        className="text-xs sm:text-sm font-bold truncate"
-                      >
-                        {userName}
-                      </h4>
+                      {isEditingName ? (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            type="text"
+                            value={nameInputValue}
+                            onChange={(e) => setNameInputValue(e.target.value)}
+                            placeholder="Seu nome"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveName();
+                              if (e.key === 'Escape') setIsEditingName(false);
+                            }}
+                            style={{
+                              backgroundColor: currentAppTheme.colors.card,
+                              color: currentAppTheme.colors.text
+                            }}
+                            className="px-2.5 py-1 text-xs rounded-xl border-0 outline-none w-full max-w-[150px] font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveName}
+                            style={{
+                              backgroundColor: currentAppTheme.colors.primary,
+                              color: '#FFFFFF'
+                            }}
+                            className="px-2.5 py-1 text-[11px] rounded-xl font-bold border-0 cursor-pointer active:scale-95"
+                          >
+                            Salvar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <h4 
+                            style={{ color: currentAppTheme.colors.text }}
+                            className="text-xs sm:text-sm font-bold truncate"
+                          >
+                            {userName || (currentLang === 'en' ? 'No name set' : 'Sem nome')}
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNameInputValue(userName || '');
+                              setIsEditingName(true);
+                            }}
+                            style={{ color: currentAppTheme.colors.primary }}
+                            className="text-[11px] font-semibold hover:underline bg-transparent border-0 cursor-pointer p-0 shrink-0"
+                            title={currentLang === 'en' ? 'Edit name' : 'Editar nome'}
+                          >
+                            {currentLang === 'en' ? 'Edit' : 'Editar'}
+                          </button>
+                        </div>
+                      )}
                       {userEmail && (
                         <p 
                           style={{ color: currentAppTheme.colors.textSecondary }}
-                          className="text-[10px] font-medium truncate"
+                          className="text-[10px] font-medium truncate mt-0.5"
                         >
                           {userEmail}
                         </p>
                       )}
                     </div>
                   </div>
-
-                  {onSignOut && (
-                    <button
-                      type="button"
-                      onClick={onSignOut}
-                      style={{
-                        backgroundColor: currentAppTheme.colors.card,
-                        color: currentAppTheme.colors.textSecondary
-                      }}
-                      className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 border-0 hover:text-red-500 cursor-pointer shrink-0 shadow-none"
-                      title="Sair da conta"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sair</span>
-                    </button>
-                  )}
                 </div>
               )}
 
@@ -1378,21 +1447,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* Seção Lista: Limpar lista ativa */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-1.5">
+                  <label 
+                    style={{ color: currentAppTheme.colors.sectionTitle }}
+                    className="text-xs font-bold uppercase tracking-wider block shrink-0"
+                  >
+                    {t.listSectionTitle || 'Lista'}
+                  </label>
+                  {activeListName && (
+                    <span 
+                      style={{ color: currentAppTheme.colors.textSecondary }}
+                      className="text-[11px] font-semibold truncate"
+                    >
+                      • {activeListName}
+                    </span>
+                  )}
+                </div>
+
+                <div 
+                  style={{ backgroundColor: currentAppTheme.colors.inputBg }}
+                  className="p-4 rounded-3xl border-0 shadow-none space-y-3"
+                >
+                  <p 
+                    style={{ color: currentAppTheme.colors.textSecondary }}
+                    className="text-xs font-medium leading-relaxed"
+                  >
+                    {currentLang === 'en'
+                      ? 'Clear items from your currently active shopping list.'
+                      : 'Esvazie itens da sua lista de compras ativa com segurança.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowClearListConfirm(true)}
+                    style={{
+                      backgroundColor: currentAppTheme.colors.deleteBg,
+                      color: currentAppTheme.colors.deleteText
+                    }}
+                    className="w-full py-3.5 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-[0.98] border border-red-500/20 cursor-pointer shadow-sm hover:opacity-90"
+                    title={t.clearActiveList || 'Limpar lista ativa'}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                    <span>{t.clearActiveList || 'Limpar lista ativa'}</span>
+                  </button>
+                </div>
+              </div>
+
             </div>
 
-            <div className="pt-4 mt-2">
+            {/* 3. Rodapé fixo com "Confirmar" e "Sair" */}
+            <div className="p-5 sm:p-6 pt-3 sm:pt-4 border-t border-black/5 dark:border-white/5 shrink-0 space-y-2">
               <button 
                 onClick={handleConfirm}
                 style={{
                   backgroundColor: currentAppTheme.colors.primary,
                   color: '#FFFFFF'
                 }}
-                className="w-full py-4 font-bold rounded-2xl active:scale-95 transition-transform border-0 shadow-none"
+                className="w-full py-3.5 sm:py-4 font-bold rounded-2xl active:scale-95 transition-transform border-0 shadow-none cursor-pointer"
               >
                 {t.confirm}
               </button>
+
+              {/* Botão Sair da conta no final de Configurações */}
+              {onSignOut && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onSignOut();
+                  }}
+                  style={{
+                    backgroundColor: currentAppTheme.colors.inputBg,
+                    color: '#EF4444'
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-[0.98] border-0 cursor-pointer hover:bg-red-500/10"
+                  title={t.signOutAction || (currentLang === 'en' ? 'Sign out' : 'Sair')}
+                >
+                  <LogOut className="w-4 h-4 text-red-500" />
+                  <span>{t.signOutAction || (currentLang === 'en' ? 'Sign out' : 'Sair')}</span>
+                </button>
+              )}
             </div>
-          </>
+          </div>
         )}
 
         {/* Toast / Snackbar de Confirmação */}
@@ -1408,23 +1545,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         )}
       </div>
 
-      {/* Janela / Modal de Favoritos (ancorada no topo com rolagem interna) */}
+      {/* Janela / Modal de Favoritos (ancorada no topo com safe-area e altura 90dvh) */}
       {showFavoritesModal && (
         <div 
-          className="fixed inset-0 z-[70] flex items-start justify-center pt-2 sm:pt-6 px-2 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
+          className="fixed inset-0 z-[70] flex items-start justify-center pt-[max(env(safe-area-inset-top,16px),16px)] pb-[max(env(safe-area-inset-bottom,16px),16px)] px-3 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
           onClick={() => setShowFavoritesModal(false)}
         >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div 
-            className="relative w-full max-w-md rounded-[2rem] p-6 sm:p-8 border-0 shadow-none flex flex-col max-h-[85vh] animate-in slide-in-from-top duration-300 z-10 overflow-hidden"
+            className="relative w-full max-w-md rounded-[2rem] border-0 shadow-2xl flex flex-col max-h-[90dvh] animate-in slide-in-from-top duration-300 z-10 overflow-hidden"
             style={{
+              maxHeight: '90dvh',
               backgroundColor: currentAppTheme.colors.card,
               color: currentAppTheme.colors.text
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header do Modal */}
-            <div className="flex items-center justify-between pb-3 mb-4 shrink-0">
+            {/* 1. Header fixo do Modal */}
+            <div className="p-5 sm:p-6 pb-3 sm:pb-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <div 
                   className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
@@ -1462,7 +1600,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowFavoritesModal(false)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors active:scale-95 shrink-0 border-0"
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors active:scale-95 shrink-0 border-0 cursor-pointer"
                 style={{
                   backgroundColor: currentAppTheme.colors.inputBg,
                   color: currentAppTheme.colors.textSecondary
@@ -1474,8 +1612,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </button>
             </div>
 
-            {/* Conteúdo com rolagem suave */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar min-h-0">
+            {/* 2. Conteúdo no meio com rolagem suave */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 py-4 space-y-4 pr-3 custom-scrollbar">
               {/* 1. Formulário de Cadastro: flex-1 min-w-0 para caber sempre dentro do card, inclusive em telas pequenas */}
               <div 
                 className="p-3 rounded-2xl border-0 flex gap-2 items-center"
@@ -1642,8 +1780,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            {/* Botão de Fechar no rodapé do modal */}
-            <div className="pt-3 mt-3 shrink-0">
+            {/* 3. Rodapé fixo do modal */}
+            <div className="p-5 sm:p-6 pt-3 sm:pt-4 border-t border-black/5 dark:border-white/5 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowFavoritesModal(false)}
@@ -1651,7 +1789,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   backgroundColor: currentAppTheme.colors.primary,
                   color: '#FFFFFF'
                 }}
-                className="w-full py-3 rounded-2xl font-bold text-xs active:scale-95 transition-transform border-0 shadow-none"
+                className="w-full py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform border-0 shadow-none cursor-pointer"
               >
                 {t.close}
               </button>
@@ -1660,23 +1798,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
       )}
 
-      {/* Janela / Modal de Mais Comprados (ancorada no topo com rolagem interna) */}
+      {/* Janela / Modal de Mais Comprados (ancorada no topo com safe-area e altura 90dvh) */}
       {showMostPurchasedModal && (
         <div 
-          className="fixed inset-0 z-[70] flex items-start justify-center pt-2 sm:pt-6 px-2 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
+          className="fixed inset-0 z-[70] flex items-start justify-center pt-[max(env(safe-area-inset-top,16px),16px)] pb-[max(env(safe-area-inset-bottom,16px),16px)] px-3 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
           onClick={() => setShowMostPurchasedModal(false)}
         >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div 
-            className="relative w-full max-w-md rounded-[2rem] p-6 sm:p-8 border-0 shadow-none flex flex-col max-h-[85vh] animate-in slide-in-from-top duration-300 z-10 overflow-hidden"
+            className="relative w-full max-w-md rounded-[2rem] border-0 shadow-2xl flex flex-col max-h-[90dvh] animate-in slide-in-from-top duration-300 z-10 overflow-hidden"
             style={{
+              maxHeight: '90dvh',
               backgroundColor: currentAppTheme.colors.card,
               color: currentAppTheme.colors.text
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header do Modal */}
-            <div className="flex items-center justify-between pb-3 mb-4 shrink-0">
+            {/* 1. Header fixo do Modal */}
+            <div className="p-5 sm:p-6 pb-3 sm:pb-4 border-b border-black/5 dark:border-white/5 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <div 
                   className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
@@ -1716,7 +1855,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowMostPurchasedModal(false)}
-                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors active:scale-95 shrink-0 border-0"
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors active:scale-95 shrink-0 border-0 cursor-pointer"
                 style={{
                   backgroundColor: currentAppTheme.colors.inputBg,
                   color: currentAppTheme.colors.textSecondary
@@ -1727,6 +1866,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <X className="w-5 h-5" strokeWidth={2.5} />
               </button>
             </div>
+
+            {/* 2. Conteúdo no meio com rolagem suave */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 py-4 space-y-4 pr-3 custom-scrollbar">
 
             {/* Seletor Top 5 e Top 10 */}
             <div className="flex items-center justify-between mb-4 shrink-0">
@@ -1772,8 +1914,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            {/* Conteúdo do Ranking com rolagem suave */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-0">
+            {/* Conteúdo do Ranking */}
+            <div className="space-y-2">
               {topItems.length > 0 ? (
                 topItems.map((item, idx) => {
                   const rank = idx + 1;
@@ -1865,9 +2007,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Botão de Fechar no rodapé do modal */}
-            <div className="pt-3 mt-3 shrink-0">
+          {/* 3. Rodapé fixo do modal */}
+            <div className="p-5 sm:p-6 pt-3 sm:pt-4 border-t border-black/5 dark:border-white/5 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowMostPurchasedModal(false)}
@@ -1875,7 +2018,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   backgroundColor: currentAppTheme.colors.primary,
                   color: '#FFFFFF'
                 }}
-                className="w-full py-3 rounded-2xl font-bold text-xs active:scale-95 transition-transform border-0 shadow-none"
+                className="w-full py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform border-0 shadow-none cursor-pointer"
               >
                 {t.close}
               </button>
@@ -1955,6 +2098,117 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex-1 min-h-[44px] h-[44px] py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider border-0 cursor-pointer active:scale-95 transition-transform shadow-sm"
               >
                 {t.deleteConfirmAction || 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Diálogo de Confirmação para Limpar Lista Ativa */}
+      {showClearListConfirm && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowClearListConfirm(false)}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" />
+          <div 
+            className="relative w-full max-w-sm rounded-[2.5rem] p-6 sm:p-7 shadow-2xl animate-in zoom-in-95 duration-200 border-0 z-10 text-center"
+            style={{
+              backgroundColor: currentAppTheme.colors.card,
+              color: currentAppTheme.colors.text
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div 
+              className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{
+                backgroundColor: currentAppTheme.colors.deleteBg,
+                color: currentAppTheme.colors.deleteText
+              }}
+            >
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+
+            <h3 
+              style={{ color: currentAppTheme.colors.text }}
+              className="text-base sm:text-lg font-bold mb-2 leading-snug"
+            >
+              {t.clearActiveListConfirm || 'Limpar lista ativa?'}
+            </h3>
+            <p 
+              style={{ color: currentAppTheme.colors.textSecondary }}
+              className="text-xs font-medium mb-6 leading-relaxed"
+            >
+              {currentLang === 'en'
+                ? `Choose how to clear items from "${activeListName || 'Active List'}":`
+                : `Escolha como deseja limpar os produtos de "${activeListName || 'Lista Ativa'}":`}
+            </p>
+
+            <div className="space-y-2.5">
+              <button 
+                type="button"
+                onClick={() => {
+                  if (onClearActiveList) onClearActiveList('purchased');
+                  setShowClearListConfirm(false);
+                  setHistoryToast(currentLang === 'en' ? 'Purchased items removed.' : 'Itens comprados removidos.');
+                  if (historyToastTimerRef.current) clearTimeout(historyToastTimerRef.current);
+                  historyToastTimerRef.current = setTimeout(() => setHistoryToast(null), 3000);
+                }} 
+                style={{
+                  backgroundColor: currentAppTheme.colors.inputBg,
+                  color: currentAppTheme.colors.text
+                }}
+                className="w-full py-3.5 px-4 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2 border-0 text-xs cursor-pointer"
+              >
+                <Check className="h-4 w-4 text-emerald-500" />
+                <span>{t.removePurchased || (currentLang === 'en' ? 'Remove purchased' : 'Remover Comprados')}</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => {
+                  if (onClearActiveList) onClearActiveList('unavailable');
+                  setShowClearListConfirm(false);
+                  setHistoryToast(currentLang === 'en' ? 'Unavailable items removed.' : 'Itens indisponíveis removidos.');
+                  if (historyToastTimerRef.current) clearTimeout(historyToastTimerRef.current);
+                  historyToastTimerRef.current = setTimeout(() => setHistoryToast(null), 3000);
+                }} 
+                style={{
+                  backgroundColor: currentAppTheme.colors.inputBg,
+                  color: currentAppTheme.colors.text
+                }}
+                className="w-full py-3.5 px-4 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2 border-0 text-xs cursor-pointer"
+              >
+                <span className="text-amber-500 text-sm">⊘</span>
+                <span>{t.removeUnavailable || (currentLang === 'en' ? 'Remove unavailable' : 'Remover Indisponíveis')}</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => {
+                  if (onClearActiveList) onClearActiveList('all');
+                  setShowClearListConfirm(false);
+                  setHistoryToast(currentLang === 'en' ? 'List cleared.' : 'Lista limpa com sucesso.');
+                  if (historyToastTimerRef.current) clearTimeout(historyToastTimerRef.current);
+                  historyToastTimerRef.current = setTimeout(() => setHistoryToast(null), 3000);
+                }} 
+                style={{
+                  backgroundColor: '#DC2626',
+                  color: '#FFFFFF'
+                }}
+                className="w-full py-3.5 px-4 font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2 border-0 text-xs cursor-pointer shadow-sm"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>{t.removeAll || (currentLang === 'en' ? 'Remove ALL items' : 'Remover TUDO')}</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setShowClearListConfirm(false)} 
+                style={{ color: currentAppTheme.colors.textSecondary }}
+                className="w-full py-2.5 text-xs font-bold border-0 bg-transparent cursor-pointer mt-1"
+              >
+                {t.cancel}
               </button>
             </div>
           </div>

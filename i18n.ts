@@ -4,6 +4,7 @@ export const translations = {
   pt: {
     // Header
     appName: 'Minha Lista',
+    userListTitle: (name: string) => `Lista de ${name}`,
     summary: 'Resumo',
     categorySummary: 'Resumo por Categorias',
     expandCategorySummary: 'Expandir resumo por categorias',
@@ -112,6 +113,10 @@ export const translations = {
     swipeOptUnavailable: 'Indisp.',
     swipeOptDelete: 'Excluir',
     swipeOptNone: 'Nenhum',
+    listSectionTitle: 'Lista',
+    clearActiveList: 'Limpar lista ativa',
+    clearActiveListConfirm: 'Limpar lista ativa?',
+    signOutAction: 'Sair',
     historyTitle: 'Histórico de Compras',
     noHistory: 'Nenhum histórico salvo ainda.',
     historyDeletedToast: 'Histórico excluído com sucesso.',
@@ -132,7 +137,7 @@ export const translations = {
     removeItemFromList: 'Remover da lista',
     howToUseApp: 'Como usar o app',
     guideTitle: 'Como usar o app',
-    guideSubtitle: 'Guia visual e rápido de todas as funções',
+    guideSubtitle: 'Compra Certa - Lista e Orçamento • Guia visual de funções',
     expandAll: 'Expandir todos',
     collapseAll: 'Recolher todos',
 
@@ -175,7 +180,7 @@ export const translations = {
     onlySaveDesc: 'Mantém todos os produtos na lista',
     back: 'Voltar',
 
-    pdfTitle: 'SuperList - Lista de Compras',
+    pdfTitle: 'Compra Certa - Lista e Orçamento',
     pdfDate: 'Data:',
     pdfQty: 'Qtd',
     pdfProduct: 'Produto',
@@ -208,6 +213,7 @@ export const translations = {
   en: {
     // Header
     appName: 'My List',
+    userListTitle: (name: string) => `${name}'s List`,
     summary: 'Summary',
     categorySummary: 'Category Summary',
     expandCategorySummary: 'Expand category summary',
@@ -316,6 +322,10 @@ export const translations = {
     swipeOptUnavailable: 'Unavail.',
     swipeOptDelete: 'Delete',
     swipeOptNone: 'None',
+    listSectionTitle: 'List',
+    clearActiveList: 'Clear active list',
+    clearActiveListConfirm: 'Clear active list?',
+    signOutAction: 'Sign out',
     historyTitle: 'Purchase History',
     noHistory: 'No saved history yet.',
     historyDeletedToast: 'History deleted successfully.',
@@ -336,7 +346,7 @@ export const translations = {
     removeItemFromList: 'Remove from list',
     howToUseApp: 'How to use the app',
     guideTitle: 'How to use the app',
-    guideSubtitle: 'Visual and quick guide to all features',
+    guideSubtitle: 'Compra Certa - List & Budget • Feature guide',
     expandAll: 'Expand all',
     collapseAll: 'Collapse all',
 
@@ -380,7 +390,7 @@ export const translations = {
     back: 'Back',
 
     // PDF
-    pdfTitle: 'SuperList - Shopping List',
+    pdfTitle: 'Compra Certa - Shopping List & Budget',
     pdfDate: 'Date:',
     pdfQty: 'Qty',
     pdfProduct: 'Product',

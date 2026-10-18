@@ -147,7 +147,7 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[70] flex items-start justify-center pt-2 sm:pt-6 px-2 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
+      className="fixed inset-0 z-[70] flex items-start justify-center pt-[max(env(safe-area-inset-top,16px),16px)] pb-[max(env(safe-area-inset-bottom,16px),16px)] px-3 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
       onClick={onClose}
     >
       {/* Backdrop */}
@@ -159,14 +159,15 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
       {/* Main Container */}
       <div 
         style={{
+          maxHeight: '90dvh',
           backgroundColor: themeConfig.colors.card,
           color: themeConfig.colors.text
         }}
-        className="relative w-full max-w-sm sm:max-w-md rounded-[2rem] p-5 sm:p-6 shadow-2xl animate-in slide-in-from-top duration-300 border-0 flex flex-col max-h-[85vh] z-10 overflow-hidden"
+        className="relative w-full max-w-sm sm:max-w-md rounded-[2rem] shadow-2xl animate-in slide-in-from-top duration-300 border-0 flex flex-col max-h-[90dvh] z-10 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 mb-2 border-b border-black/5 dark:border-white/5">
+        {/* 1. Header fixo */}
+        <div className="p-5 sm:p-6 pb-3 sm:pb-4 border-b border-black/5 dark:border-white/5 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div 
               style={{
@@ -208,8 +209,9 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
 
         {/* View: List of lists */}
         {viewState === 'list' && (
-          <div className="flex flex-col min-h-0 flex-1">
-            <div className="space-y-2 overflow-y-auto max-h-[50vh] pr-1 py-1 custom-scrollbar">
+          <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+            {/* 2. Conteúdo no meio com rolagem vertical própria */}
+            <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-5 sm:p-6 py-3 pr-3 custom-scrollbar">
               {lists.map((list) => {
                 const isActive = list.id === activeListId;
                 const isActionOpen = actionMenuTargetId === list.id;
@@ -379,8 +381,8 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
               })}
             </div>
 
-            {/* Botão Nova Lista */}
-            <div className="pt-4 mt-2 border-t border-black/5 dark:border-white/5">
+            {/* 3. Rodapé fixo com Botão Nova Lista */}
+            <div className="p-5 sm:p-6 pt-3 sm:pt-4 border-t border-black/5 dark:border-white/5 shrink-0">
               <button
                 type="button"
                 onClick={handleOpenCreate}
@@ -399,60 +401,64 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
 
         {/* View: Criar Nova Lista */}
         {viewState === 'create' && (
-          <form onSubmit={handleSaveCreate} className="space-y-4 pt-1">
-            <div>
-              <label 
-                style={{ color: themeConfig.colors.sectionTitle }}
-                className="text-[11px] font-bold uppercase tracking-wider block mb-1.5"
-              >
-                {t.listNamePlaceholder}
-              </label>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                autoFocus
-                placeholder="Ex.: Supermercado, Farmácia, Casa..."
-                style={{
-                  backgroundColor: themeConfig.colors.inputBg,
-                  color: themeConfig.colors.text
-                }}
-                className="w-full px-4 py-3 rounded-2xl border-0 outline-none font-semibold text-sm transition-all"
-              />
-            </div>
+          <form onSubmit={handleSaveCreate} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {/* 2. Conteúdo no meio com rolagem própria */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 py-4 space-y-4 custom-scrollbar">
+              <div>
+                <label 
+                  style={{ color: themeConfig.colors.sectionTitle }}
+                  className="text-[11px] font-bold uppercase tracking-wider block mb-1.5"
+                >
+                  {t.listNamePlaceholder}
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  autoFocus
+                  placeholder="Ex.: Supermercado, Farmácia, Casa..."
+                  style={{
+                    backgroundColor: themeConfig.colors.inputBg,
+                    color: themeConfig.colors.text
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl border-0 outline-none font-semibold text-sm transition-all"
+                />
+              </div>
 
-            {/* Seletor de Ícones */}
-            <div>
-              <label 
-                style={{ color: themeConfig.colors.sectionTitle }}
-                className="text-[11px] font-bold uppercase tracking-wider block mb-2"
-              >
-                {t.listIcon}
-              </label>
-              <div className="grid grid-cols-6 gap-2">
-                {PRESET_ICONS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => setFormIcon(emoji)}
-                    style={formIcon === emoji ? {
-                      backgroundColor: themeConfig.colors.primary,
-                      borderColor: themeConfig.colors.primary
-                    } : {
-                      backgroundColor: themeConfig.colors.inputBg,
-                      borderColor: 'transparent'
-                    }}
-                    className={`h-11 rounded-xl text-xl flex items-center justify-center transition-all active:scale-90 border-2 cursor-pointer ${
-                      formIcon === emoji ? 'shadow-sm' : ''
-                    }`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              {/* Seletor de Ícones */}
+              <div>
+                <label 
+                  style={{ color: themeConfig.colors.sectionTitle }}
+                  className="text-[11px] font-bold uppercase tracking-wider block mb-2"
+                >
+                  {t.listIcon}
+                </label>
+                <div className="grid grid-cols-6 gap-2">
+                  {PRESET_ICONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setFormIcon(emoji)}
+                      style={formIcon === emoji ? {
+                        backgroundColor: themeConfig.colors.primary,
+                        borderColor: themeConfig.colors.primary
+                      } : {
+                        backgroundColor: themeConfig.colors.inputBg,
+                        borderColor: 'transparent'
+                      }}
+                      className={`h-11 rounded-xl text-xl flex items-center justify-center transition-all active:scale-90 border-2 cursor-pointer ${
+                        formIcon === emoji ? 'shadow-sm' : ''
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            {/* 3. Rodapé fixo com ações */}
+            <div className="p-5 sm:p-6 pt-3 sm:pt-4 border-t border-black/5 dark:border-white/5 shrink-0 flex gap-2">
               <button
                 type="button"
                 onClick={() => setViewState('list')}
@@ -481,60 +487,64 @@ export const ListMenuModal: React.FC<ListMenuModalProps> = ({
 
         {/* View: Renomear Lista */}
         {viewState === 'edit' && selectedListForAction && (
-          <form onSubmit={handleSaveEdit} className="space-y-4 pt-1">
-            <div>
-              <label 
-                style={{ color: themeConfig.colors.sectionTitle }}
-                className="text-[11px] font-bold uppercase tracking-wider block mb-1.5"
-              >
-                {t.renameList}
-              </label>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                autoFocus
-                placeholder="Ex.: Supermercado, Farmácia..."
-                style={{
-                  backgroundColor: themeConfig.colors.inputBg,
-                  color: themeConfig.colors.text
-                }}
-                className="w-full px-4 py-3 rounded-2xl border-0 outline-none font-semibold text-sm transition-all"
-              />
-            </div>
+          <form onSubmit={handleSaveEdit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {/* 2. Conteúdo no meio com rolagem própria */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 py-4 space-y-4 custom-scrollbar">
+              <div>
+                <label 
+                  style={{ color: themeConfig.colors.sectionTitle }}
+                  className="text-[11px] font-bold uppercase tracking-wider block mb-1.5"
+                >
+                  {t.renameList}
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  autoFocus
+                  placeholder="Ex.: Supermercado, Farmácia..."
+                  style={{
+                    backgroundColor: themeConfig.colors.inputBg,
+                    color: themeConfig.colors.text
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl border-0 outline-none font-semibold text-sm transition-all"
+                />
+              </div>
 
-            {/* Seletor de Ícones */}
-            <div>
-              <label 
-                style={{ color: themeConfig.colors.sectionTitle }}
-                className="text-[11px] font-bold uppercase tracking-wider block mb-2"
-              >
-                {t.listIcon}
-              </label>
-              <div className="grid grid-cols-6 gap-2">
-                {PRESET_ICONS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => setFormIcon(emoji)}
-                    style={formIcon === emoji ? {
-                      backgroundColor: themeConfig.colors.primary,
-                      borderColor: themeConfig.colors.primary
-                    } : {
-                      backgroundColor: themeConfig.colors.inputBg,
-                      borderColor: 'transparent'
-                    }}
-                    className={`h-11 rounded-xl text-xl flex items-center justify-center transition-all active:scale-90 border-2 cursor-pointer ${
-                      formIcon === emoji ? 'shadow-sm' : ''
-                    }`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              {/* Seletor de Ícones */}
+              <div>
+                <label 
+                  style={{ color: themeConfig.colors.sectionTitle }}
+                  className="text-[11px] font-bold uppercase tracking-wider block mb-2"
+                >
+                  {t.listIcon}
+                </label>
+                <div className="grid grid-cols-6 gap-2">
+                  {PRESET_ICONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setFormIcon(emoji)}
+                      style={formIcon === emoji ? {
+                        backgroundColor: themeConfig.colors.primary,
+                        borderColor: themeConfig.colors.primary
+                      } : {
+                        backgroundColor: themeConfig.colors.inputBg,
+                        borderColor: 'transparent'
+                      }}
+                      className={`h-11 rounded-xl text-xl flex items-center justify-center transition-all active:scale-90 border-2 cursor-pointer ${
+                        formIcon === emoji ? 'shadow-sm' : ''
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            {/* 3. Rodapé fixo com ações */}
+            <div className="p-5 sm:p-6 pt-3 sm:pt-4 border-t border-black/5 dark:border-white/5 shrink-0 flex gap-2">
               <button
                 type="button"
                 onClick={() => setViewState('list')}

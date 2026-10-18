@@ -361,16 +361,17 @@ export const AppGuideModal: React.FC<AppGuideModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[110] flex items-start justify-center pt-2 sm:pt-6 px-2 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
+      className="fixed inset-0 z-[110] flex items-start justify-center pt-[max(env(safe-area-inset-top,16px),16px)] pb-[max(env(safe-area-inset-bottom,16px),16px)] px-3 sm:px-4 animate-in fade-in duration-200 overflow-hidden"
       onClick={onClose}
     >
       {/* Backdrop com blur escurecido: toque fora fecha a janela */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-      {/* Janela ancorada no topo com altura máxima adaptada e rolagem interna suave */}
+      {/* Janela ancorada no topo com altura máxima adaptada (90dvh) e rolagem interna suave */}
       <div 
-        className="relative w-full max-w-md rounded-[2rem] p-5 sm:p-7 border-0 shadow-2xl flex flex-col max-h-[88vh] animate-in slide-in-from-top duration-300 z-10 overflow-hidden"
+        className="relative w-full max-w-md rounded-[2rem] border-0 shadow-2xl flex flex-col max-h-[90dvh] animate-in slide-in-from-top duration-300 z-10 overflow-hidden"
         style={{
+          maxHeight: '90dvh',
           backgroundColor: themeConfig.colors.card,
           color: themeConfig.colors.text
         }}
@@ -378,8 +379,8 @@ export const AppGuideModal: React.FC<AppGuideModalProps> = ({
         onMouseDown={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho da janela */}
-        <div className="flex items-center justify-between pb-3 mb-2 border-b border-black/5 dark:border-white/5 shrink-0">
+        {/* 1. Cabeçalho fixo da janela */}
+        <div className="p-5 sm:p-6 pb-3 sm:pb-4 border-b border-black/5 dark:border-white/5 shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div 
               className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
@@ -425,7 +426,7 @@ export const AppGuideModal: React.FC<AppGuideModalProps> = ({
         </div>
 
         {/* Barra superior de ações auxiliares: Contagem e Alternador de Expandir/Recolher */}
-        <div className="flex items-center justify-between py-2 px-1 text-[11px] font-bold shrink-0">
+        <div className="flex items-center justify-between py-2 px-5 sm:px-6 text-[11px] font-bold shrink-0 border-b border-black/5 dark:border-white/5">
           <span 
             style={{ color: themeConfig.colors.sectionTitle }}
             className="uppercase tracking-wider text-[10px] font-extrabold"
@@ -444,8 +445,8 @@ export const AppGuideModal: React.FC<AppGuideModalProps> = ({
           </button>
         </div>
 
-        {/* Lista rolável de seções em estilo Sanfona / Accordion */}
-        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar pb-2">
+        {/* 2. Conteúdo no meio com rolagem vertical própria */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 p-5 sm:p-6 py-3 pr-3 custom-scrollbar">
           {GUIDE_SECTIONS.map((section) => {
             const isExpanded = !!expandedIds[section.id];
             const SectionIcon = section.icon;
@@ -540,8 +541,8 @@ export const AppGuideModal: React.FC<AppGuideModalProps> = ({
           })}
         </div>
 
-        {/* Rodapé com botão Entendido / Fechar */}
-        <div className="pt-3 mt-2 border-t border-black/5 dark:border-white/5 shrink-0">
+        {/* 3. Rodapé fixo com botão Entendido / Fechar */}
+        <div className="p-5 sm:p-6 pt-3 sm:pt-4 border-t border-black/5 dark:border-white/5 shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -549,7 +550,7 @@ export const AppGuideModal: React.FC<AppGuideModalProps> = ({
               backgroundColor: themeConfig.colors.primary,
               color: '#FFFFFF'
             }}
-            className="w-full min-h-[44px] h-11 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider border-0 cursor-pointer active:scale-95 transition-transform shadow-none"
+            className="w-full py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider border-0 cursor-pointer active:scale-95 transition-transform shadow-none"
           >
             {lang === 'en' ? 'Got it' : 'Entendido'}
           </button>
