@@ -5,6 +5,7 @@ import { getTranslation } from '../i18n';
 import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME } from '../utils/appThemes';
 import { AppGuideModal } from './AppGuideModal';
 import { supabase, isSupabaseConfigured } from '../supabase';
+import { AUTH_ATIVO } from './AuthGate';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -96,7 +97,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
     } catch (_) {}
     window.dispatchEvent(new CustomEvent('compra_certa:user-name-changed', { detail: trimmed }));
-    if (isSupabaseConfigured) {
+    if (AUTH_ATIVO && isSupabaseConfigured) {
       try {
         await supabase.auth.updateUser({
           data: { nome: trimmed }

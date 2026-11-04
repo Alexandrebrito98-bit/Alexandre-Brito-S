@@ -19,7 +19,7 @@ import {
   TEXTURE_OPTIONS 
 } from './utils/themePresets';
 import { APP_THEMES, AppThemeId, DEFAULT_APP_THEME, AppThemeConfig } from './utils/appThemes';
-import { useAuth } from './components/AuthGate';
+import { useAuth, AUTH_ATIVO } from './components/AuthGate';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 const MULTI_LISTS_KEY = 'superlist_multi_lists';
@@ -375,7 +375,7 @@ const App: React.FC = () => {
 
   // Carregamento inicial dos dados da nuvem do Supabase na tabela public.user_data
   useEffect(() => {
-    if (!user?.id || !isSupabaseConfigured || isOfflineMode) {
+    if (!AUTH_ATIVO || !user?.id || !isSupabaseConfigured || isOfflineMode) {
       isInitialSyncDoneRef.current = true;
       return;
     }
@@ -445,7 +445,7 @@ const App: React.FC = () => {
 
   // Sincronização automática com debounce de 1 segundo para a tabela public.user_data
   useEffect(() => {
-    if (!user?.id || !isSupabaseConfigured || isOfflineMode || !isInitialSyncDoneRef.current) {
+    if (!AUTH_ATIVO || !user?.id || !isSupabaseConfigured || isOfflineMode || !isInitialSyncDoneRef.current) {
       return;
     }
 
@@ -1123,7 +1123,7 @@ const App: React.FC = () => {
         activeListIcon={activeList.icon}
         onOpenListMenu={() => setShowListMenu(true)}
         userName={userName}
-        onSignOut={signOut}
+        onSignOut={AUTH_ATIVO ? signOut : undefined}
       />
 
       <main className="flex-1 px-4 py-2 space-y-3 max-w-lg mx-auto w-full">
@@ -1989,8 +1989,8 @@ const App: React.FC = () => {
           allListsHistory={lists.flatMap(l => l.savedHistory || [])}
           allListsItems={lists.flatMap(l => l.items || [])}
           userName={userName}
-          userEmail={userEmail}
-          onSignOut={signOut}
+          userEmail={AUTH_ATIVO ? userEmail : undefined}
+          onSignOut={AUTH_ATIVO ? signOut : undefined}
           onClearActiveList={(type) => clearList(type || 'all')}
         />
       )}

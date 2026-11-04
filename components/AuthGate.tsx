@@ -5,6 +5,12 @@ import { AuthScreen } from './AuthScreen';
 import { AppLogo } from './AppLogo';
 import { APP_THEMES, DEFAULT_APP_THEME } from '../utils/appThemes';
 
+// Controle mestre de Autenticação:
+// Quando AUTH_ATIVO = false, o app abre direto na lista sem nenhuma tela de login/cadastro/assinatura,
+// não consulta o Supabase para verificar sessão e oculta o botão "Sair" em Configurações.
+// Quando AUTH_ATIVO = true, todo o fluxo de autenticação volta a funcionar normalmente.
+export const AUTH_ATIVO = false;
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -31,7 +37,7 @@ interface AuthGateProps {
 
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => AUTH_ATIVO);
   const [isOfflineBypass, setIsOfflineBypass] = useState(false);
   const [liveUserName, setLiveUserName] = useState<string>(() => {
     try {
@@ -65,6 +71,12 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    // Quando a autenticação está desativada, não consulta o Supabase para verificar sessão
+    if (!AUTH_ATIVO) {
+      setIsLoading(false);
+      return;
+    }
+
     // Se o Supabase não estiver configurado nas variáveis de ambiente
     if (!isSupabaseConfigured) {
       setIsLoading(false);
@@ -191,8 +203,8 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     );
   }
 
-  // Sem sessão e sem bypass offline: exibe a tela de acesso
-  if (!session && !isOfflineBypass) {
+  // Sem sessão e sem bypass offline: exibe a tela de acesso somente se a autenticação estiver ativa
+  if (AUTH_ATIVO && !session && !isOfflineBypass) {
     return (
       <AuthScreen 
         onBypassOffline={!isSupabaseConfigured ? () => setIsOfflineBypass(true) : undefined} 
