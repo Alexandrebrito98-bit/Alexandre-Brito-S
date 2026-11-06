@@ -10,7 +10,14 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useKeyboardAvoidance } from './hooks/useKeyboardAvoidance';
 import { getTranslation } from './i18n';
-import { detectCategory, getCategoryDisplayName, CategoryDefinition } from './utils/categoryDetector';
+import { 
+  detectCategory, 
+  resolveItemCategory, 
+  normalizeItemName, 
+  getCategoryDisplayName, 
+  CategoryDefinition 
+} from './utils/categoryDetector';
+import { CategoryPickerSheet } from './components/CategoryPickerSheet';
 import { 
   DEFAULT_THEME_CONFIG, 
   COLOR_OPTIONS, 
@@ -27,6 +34,8 @@ const ACTIVE_LIST_KEY = 'superlist_active_list_id';
 const STORAGE_KEY = 'superlist_data';
 const SETTINGS_KEY = 'superlist_settings';
 const VIEW_SORT_KEY = 'superlist_view_sort_mode';
+const PRODUCT_CATEGORY_OVERRIDES_KEY = 'compra_certa_category_overrides';
+const CUSTOM_CATEGORIES_KEY = 'compra_certa_custom_categories';
 
 const App: React.FC = () => {
   const { user, userName, userEmail, signOut, isOfflineMode } = useAuth();
@@ -373,6 +382,67 @@ const App: React.FC = () => {
     localStorage.setItem(VIEW_SORT_KEY, viewSortOption);
   }, [viewSortOption]);
 
+  const [categorySheetItem, setCategorySheetItem] = useState<ShoppingItem | null>(null);
+
+  const [productCategoryOverrides, setProductCategoryOverrides] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(PRODUCT_CATEGORY_OVERRIDES_KEY) || localStorage.getItem('superlist_category_overrides');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return {};
+  });
+
+  const [customCategories, setCustomCategories] = useState<CategoryDefinition[]>(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOM_CATEGORIES_KEY) || localStorage.getItem('superlist_custom_categories');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PRODUCT_CATEGORY_OVERRIDES_KEY, JSON.stringify(productCategoryOverrides));
+    } catch (_) {}
+  }, [productCategoryOverrides]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CUSTOM_CATEGORIES_KEY, JSON.stringify(customCategories));
+    } catch (_) {}
+  }, [customCategories]);
+
+  const handleChangeCategory = useCallback((targetItem: ShoppingItem, newCat: CategoryDefinition) => {
+    // 1. Atualizar o item na lista ativa
+    setItems(prev => prev.map(i => i.id === targetItem.id ? { ...i, categoryId: newCat.id } : i));
+
+    // 2. Lembrar a escolha para as próximas adições do mesmo produto
+    const normalized = normalizeItemName(targetItem.name);
+    setProductCategoryOverrides(prev => ({
+      ...prev,
+      [normalized]: newCat.id
+    }));
+
+    // 3. Feedback visual breve
+    const catDisplayName = getCategoryDisplayName(newCat, currentLang);
+    showToast(t.categoryChanged ? t.categoryChanged(catDisplayName) : `Categoria: ${catDisplayName}`);
+  }, [setItems, currentLang, showToast, t]);
+
+  const handleCreateCustomCategory = useCallback((name: string, icon: string): CategoryDefinition => {
+    const newCat: CategoryDefinition = {
+      id: `custom_${Date.now()}`,
+      names: {
+        pt: name,
+        en: name
+      },
+      icon: icon || '🏷️',
+      keywords: [name.toLowerCase()],
+      isCustom: true
+    };
+    setCustomCategories(prev => [...prev, newCat]);
+    return newCat;
+  }, []);
+
   // Carregamento inicial dos dados da nuvem do Supabase na tabela public.user_data
   useEffect(() => {
     if (!AUTH_ATIVO || !user?.id || !isSupabaseConfigured || isOfflineMode) {
@@ -607,6 +677,9 @@ const App: React.FC = () => {
         return;
       } else {
         // Não existe na lista: adiciona normalmente já como comprado
+        const normalized = normalizeItemName(rawName);
+        const assignedCat = productCategoryOverrides[normalized] || detectCategory(rawName, customCategories, productCategoryOverrides).id;
+
         const newItem: ShoppingItem = {
           id: crypto.randomUUID(),
           name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
@@ -614,7 +687,8 @@ const App: React.FC = () => {
           unitPrice: validPrice,
           isAvailable: true,
           isPurchased: true,
-          addedAt: Date.now()
+          addedAt: Date.now(),
+          categoryId: assignedCat
         };
         setItems(prev => [newItem, ...prev]);
 
@@ -681,6 +755,9 @@ const App: React.FC = () => {
       return;
     }
 
+    const normalized = normalizeItemName(name);
+    const assignedCat = productCategoryOverrides[normalized] || detectCategory(name, customCategories, productCategoryOverrides).id;
+
     const newItem: ShoppingItem = {
       id: crypto.randomUUID(),
       name: name.charAt(0).toUpperCase() + name.slice(1),
@@ -688,7 +765,8 @@ const App: React.FC = () => {
       unitPrice: validPrice,
       isAvailable: !isNewItemUnavailable,
       isPurchased: isNewItemPurchased,
-      addedAt: Date.now()
+      addedAt: Date.now(),
+      categoryId: assignedCat
     };
     setItems(prev => [newItem, ...prev]);
     
@@ -700,7 +778,7 @@ const App: React.FC = () => {
     setIsNewItemUnavailable(false);
     
     inputRef.current?.focus();
-  }, [newItemName, newItemQty, newItemPrice, items, isNewItemPurchased, isNewItemUnavailable, t]);
+  }, [newItemName, newItemQty, newItemPrice, items, isNewItemPurchased, isNewItemUnavailable, productCategoryOverrides, customCategories, t]);
 
   const handleAddItemFromSettings = useCallback((itemData: { name: string; quantity?: number; unitPrice?: number }, fromHistory?: boolean) => {
     const rawName = itemData.name.trim();
@@ -726,6 +804,8 @@ const App: React.FC = () => {
           addedAt: Date.now()
         } : i);
       }
+      const normalized = normalizeItemName(rawName);
+      const assignedCat = productCategoryOverrides[normalized] || detectCategory(rawName, customCategories, productCategoryOverrides).id;
       const newItem: ShoppingItem = {
         id: crypto.randomUUID(),
         name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
@@ -733,12 +813,13 @@ const App: React.FC = () => {
         unitPrice: price,
         isAvailable: true,
         isPurchased: false,
-        addedAt: Date.now()
+        addedAt: Date.now(),
+        categoryId: assignedCat
       };
       return [newItem, ...prev];
     });
     showToast(t.itemAddedToList(rawName));
-  }, [showToast, t]);
+  }, [showToast, productCategoryOverrides, customCategories, t]);
 
   const handleRevertItemFromSettings = useCallback((itemName: string, wasExistingBeforeAdd: boolean) => {
     const rawName = itemName.trim();
@@ -943,7 +1024,7 @@ const App: React.FC = () => {
       const groupsMap = new Map<string, { category: CategoryDefinition; items: ShoppingItem[] }>();
 
       baseFiltered.forEach(item => {
-        const cat = detectCategory(item.name);
+        const cat = resolveItemCategory(item, customCategories, productCategoryOverrides);
         if (!groupsMap.has(cat.id)) {
           groupsMap.set(cat.id, { category: cat, items: [] });
         }
@@ -978,7 +1059,7 @@ const App: React.FC = () => {
     const sorted = [...baseFiltered].sort(getItemSortFn(viewSortOption));
 
     return { isCategoryMode: false as const, items: sorted };
-  }, [items, searchTerm, filterStatus, viewSortOption, currentLang]);
+  }, [items, searchTerm, filterStatus, viewSortOption, currentLang, customCategories, productCategoryOverrides]);
 
   interface CategorySummaryItem {
     category: CategoryDefinition;
@@ -1000,7 +1081,7 @@ const App: React.FC = () => {
     const map = new Map<string, { category: CategoryDefinition; count: number; totalValue: number; items: ShoppingItem[] }>();
 
     filtered.forEach(item => {
-      const cat = detectCategory(item.name);
+      const cat = resolveItemCategory(item, customCategories, productCategoryOverrides);
       const val = (item.unitPrice || 0) * (item.quantity || 1);
       const existing = map.get(cat.id);
       if (existing) {
@@ -1038,7 +1119,7 @@ const App: React.FC = () => {
     });
 
     return result;
-  }, [items, filterStatus, currentLang]);
+  }, [items, filterStatus, currentLang, customCategories, productCategoryOverrides]);
 
   const totalSummaryProducts = useMemo(() => {
     return categorySummary.reduce((sum, c) => sum + c.productCount, 0);
@@ -1087,6 +1168,110 @@ const App: React.FC = () => {
     { id: 'last_modified' as ViewSortOption, label: t.sortLastModified, icon: Clock },
   ];
 
+  const renderSearchBar = (isCompact = false) => (
+    <div className="flex items-center gap-2">
+      <div className="relative flex-1">
+        <input 
+          type="text" 
+          value={searchTerm} 
+          onChange={(e) => handleSearchChange(e.target.value)} 
+          placeholder={t.searchPlaceholder} 
+          style={{
+            backgroundColor: activeAppTheme.colors.inputBg,
+            color: activeAppTheme.colors.text
+          }}
+          className={`w-full rounded-xl ${isCompact ? 'py-1.5 pl-8 pr-3 text-xs h-8' : 'py-2 pl-10 pr-4 text-xs'} border-0 outline-none transition-all`}
+        />
+        <svg xmlns="http://www.w3.org/2000/svg" className={`${isCompact ? 'h-3.5 w-3.5 left-2.5' : 'h-4 w-4 left-3.5'} absolute top-1/2 -translate-y-1/2 text-gray-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+
+      {/* Ícone de filtro/ordenação */}
+      <div className="relative shrink-0" ref={sortMenuRef}>
+        <button
+          type="button"
+          onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+          style={isSortMenuOpen ? { 
+            backgroundColor: activeAppTheme.colors.primary, 
+            color: '#FFFFFF'
+          } : {
+            backgroundColor: activeAppTheme.colors.inputBg,
+            color: activeAppTheme.colors.text
+          }}
+          className={`${isCompact ? 'h-8 px-2.5' : 'h-9 px-2.5'} rounded-xl border-0 shadow-none flex items-center gap-1.5 transition-all active:scale-95 text-xs font-bold`}
+          aria-label={t.sortButtonTitle}
+          title={t.sortButtonTitle}
+        >
+          <SlidersHorizontal className={isCompact ? 'w-3.5 h-3.5' : 'w-4 h-4'} strokeWidth={2.5} />
+          <span className="hidden sm:inline text-[11px] font-bold">
+            {sortOptionsConfig.find(o => o.id === viewSortOption)?.label}
+          </span>
+        </button>
+
+        {/* Dropdown Menu compacto sem bordas */}
+        {isSortMenuOpen && (
+          <div 
+            style={{
+              backgroundColor: activeAppTheme.colors.inputBg,
+              color: activeAppTheme.colors.text
+            }}
+            className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl shadow-xl py-1.5 z-40 border-0 animate-in fade-in zoom-in-95 duration-150"
+          >
+            <div className="px-3 py-1.5 flex items-center justify-between">
+              <span 
+                style={{ color: activeAppTheme.colors.sectionTitle }}
+                className="text-[10px] font-bold uppercase tracking-wider"
+              >
+                {t.sortByLabel}
+              </span>
+            </div>
+
+            <div className="p-1 space-y-0.5">
+              {sortOptionsConfig.map((opt) => {
+                const Icon = opt.icon;
+                const isSelected = viewSortOption === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setViewSortOption(opt.id);
+                      setIsSortMenuOpen(false);
+                    }}
+                    style={isSelected ? { 
+                      backgroundColor: activeAppTheme.colors.primary, 
+                      color: '#FFFFFF' 
+                    } : {
+                      color: activeAppTheme.colors.text
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl text-left text-xs font-bold flex items-center justify-between transition-colors ${
+                      isSelected ? 'font-black' : 'hover:opacity-80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Icon 
+                        className="w-3.5 h-3.5 shrink-0"
+                        style={isSelected ? { color: '#FFFFFF' } : undefined}
+                      />
+                      <span className="truncate">{opt.label}</span>
+                    </div>
+                    {isSelected && (
+                      <Check 
+                        className="w-3.5 h-3.5 shrink-0 ml-1.5 text-white" 
+                        strokeWidth={3} 
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div 
       className={`min-h-screen flex flex-col pb-36 sm:pb-44 transition-colors relative ${settings.textSize === 'small' ? 'text-sm' : settings.textSize === 'large' ? 'text-lg' : 'text-base'}`}
@@ -1096,37 +1281,53 @@ const App: React.FC = () => {
       }}
     >
       <div className="relative z-10 flex flex-col min-h-screen">
-      <Header 
-        itemCount={items.length} 
-        availableCount={items.filter(i => i.isAvailable && !i.isPurchased).length}
-        purchasedCount={items.filter(i => i.isAvailable && i.isPurchased).length}
-        unavailableCount={items.filter(i => !i.isAvailable).length}
-        onOpenSettings={() => setShowSettings(true)}
-        onClearList={() => setShowClearConfirm(true)}
-        isViewMode={isViewMode}
-        onToggleViewMode={() => {
-          setIsViewMode(prev => {
-            if (prev) {
-              setFilterStatus('all');
-            }
-            return !prev;
-          });
-        }}
-        onExport={() => setShowExportModal(true)}
-        currentFilter={filterStatus}
-        onFilterChange={setFilterStatus}
-        lang={currentLang}
-        primaryColor={activeAppTheme.colors.primary}
-        isDarkTheme={activeAppTheme.isDark}
-        themeConfig={activeAppTheme}
-        activeListName={activeList.name}
-        activeListIcon={activeList.icon}
-        onOpenListMenu={() => setShowListMenu(true)}
-        userName={userName}
-        onSignOut={AUTH_ATIVO ? signOut : undefined}
-      />
+        {/* Top Section: No modo Resumo (isViewMode), cabeçalho, chips e busca fixos no topo */}
+        <div 
+          className={isViewMode ? "sticky top-0 z-30 transition-colors shadow-xs backdrop-blur-md" : ""}
+          style={isViewMode ? {
+            backgroundColor: activeAppTheme.colors.background
+          } : undefined}
+        >
+          <div className="max-w-lg mx-auto w-full">
+            <Header 
+              itemCount={items.length} 
+              availableCount={items.filter(i => i.isAvailable && !i.isPurchased).length}
+              purchasedCount={items.filter(i => i.isAvailable && i.isPurchased).length}
+              unavailableCount={items.filter(i => !i.isAvailable).length}
+              onOpenSettings={() => setShowSettings(true)}
+              onClearList={() => setShowClearConfirm(true)}
+              isViewMode={isViewMode}
+              onToggleViewMode={() => {
+                setIsViewMode(prev => {
+                  if (prev) {
+                    setFilterStatus('all');
+                  }
+                  return !prev;
+                });
+              }}
+              onExport={() => setShowExportModal(true)}
+              currentFilter={filterStatus}
+              onFilterChange={setFilterStatus}
+              lang={currentLang}
+              primaryColor={activeAppTheme.colors.primary}
+              isDarkTheme={activeAppTheme.isDark}
+              themeConfig={activeAppTheme}
+              activeListName={activeList.name}
+              activeListIcon={activeList.icon}
+              onOpenListMenu={() => setShowListMenu(true)}
+              userName={userName}
+              onSignOut={AUTH_ATIVO ? signOut : undefined}
+            />
 
-      <main className="flex-1 px-4 py-2 space-y-3 max-w-lg mx-auto w-full">
+            {isViewMode && (
+              <div className="px-4 sm:px-6 pb-2 pt-0.5">
+                {renderSearchBar(true)}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <main className="flex-1 px-4 py-2 space-y-3 max-w-lg mx-auto w-full">
         {!isViewMode && (
           <div className="mb-2">
             <div className="flex flex-col gap-2">
@@ -1526,118 +1727,19 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="space-y-4">
-          {/* Barra de Busca com Filtro de Ordenação (no modo Visualização) */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <input 
-                type="text" 
-                value={searchTerm} 
-                onChange={(e) => handleSearchChange(e.target.value)} 
-                placeholder={t.searchPlaceholder} 
-                style={{
-                  backgroundColor: activeAppTheme.colors.inputBg,
-                  color: activeAppTheme.colors.text
-                }}
-                className="w-full rounded-xl py-2 pl-10 pr-4 text-xs border-0 outline-none transition-all"
-              />
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-
-            {/* Ícone de filtro/ordenação: cantos arredondados, sem borda e sem sombra */}
-            <div className="relative shrink-0" ref={sortMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
-                style={isSortMenuOpen ? { 
-                  backgroundColor: activeAppTheme.colors.primary, 
-                  color: '#FFFFFF'
-                } : {
-                  backgroundColor: activeAppTheme.colors.inputBg,
-                  color: activeAppTheme.colors.text
-                }}
-                className="h-9 px-2.5 rounded-xl border-0 shadow-none flex items-center gap-1.5 transition-all active:scale-95 text-xs font-bold"
-                aria-label={t.sortButtonTitle}
-                title={t.sortButtonTitle}
-              >
-                <SlidersHorizontal className="w-4 h-4" strokeWidth={2.5} />
-                <span className="hidden sm:inline text-[11px] font-bold">
-                  {sortOptionsConfig.find(o => o.id === viewSortOption)?.label}
-                </span>
-              </button>
-
-                {/* Dropdown Menu compacto sem bordas */}
-                {isSortMenuOpen && (
-                  <div 
-                    style={{
-                      backgroundColor: activeAppTheme.colors.inputBg,
-                      color: activeAppTheme.colors.text
-                    }}
-                    className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl shadow-xl py-1.5 z-40 border-0 animate-in fade-in zoom-in-95 duration-150"
-                  >
-                    <div 
-                      className="px-3 py-1.5 flex items-center justify-between"
-                    >
-                      <span 
-                        style={{ color: activeAppTheme.colors.sectionTitle }}
-                        className="text-[10px] font-bold uppercase tracking-wider"
-                      >
-                        {t.sortByLabel}
-                      </span>
-                    </div>
-
-                    <div className="p-1 space-y-0.5">
-                      {sortOptionsConfig.map((opt) => {
-                        const Icon = opt.icon;
-                        const isSelected = viewSortOption === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => {
-                              setViewSortOption(opt.id);
-                              setIsSortMenuOpen(false);
-                            }}
-                            style={isSelected ? { 
-                              backgroundColor: activeAppTheme.colors.primary, 
-                              color: '#FFFFFF' 
-                            } : {
-                              color: activeAppTheme.colors.text
-                            }}
-                            className={`w-full px-3 py-2 rounded-xl text-left text-xs font-bold flex items-center justify-between transition-colors ${
-                              isSelected ? 'font-black' : 'hover:opacity-80'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 truncate">
-                              <Icon 
-                                className="w-3.5 h-3.5 shrink-0"
-                                style={isSelected ? { color: '#FFFFFF' } : undefined}
-                              />
-                              <span className="truncate">{opt.label}</span>
-                            </div>
-                            {isSelected && (
-                              <Check 
-                                className="w-3.5 h-3.5 shrink-0 ml-1.5 text-white" 
-                                strokeWidth={3} 
-                              />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+        {!isViewMode && (
+          <div className="space-y-4">
+            {renderSearchBar(false)}
           </div>
+        )}
 
+        <div className="space-y-4">
           {/* Lista de Itens: sem cartões brancos, sem bordas, sem sombras, direto sobre o fundo do tema */}
           <div 
             style={{
               color: activeAppTheme.colors.text
             }}
-            className="space-y-4 min-h-[100px] transition-colors"
+            className={isViewMode ? "space-y-0 min-h-[100px] transition-colors" : "space-y-4 min-h-[100px] transition-colors"}
           >
           {filterStatus !== 'all' && (
             <div 
@@ -1664,8 +1766,8 @@ const App: React.FC = () => {
             // Agrupado por Categoria (disponível tanto no Modo Visualização quanto na Minha Lista)
             <>
               {viewModeData.categoryGroups.map((group) => (
-                <div key={group.category.id} className="mb-3.5 last:mb-0">
-                  <div className="flex items-center justify-between px-1 pb-1.5 mb-1">
+                <div key={group.category.id} className={isViewMode ? "mb-2 last:mb-0" : "mb-3.5 last:mb-0"}>
+                  <div className="flex items-center justify-between px-1 pb-1 mb-0.5">
                     <div className="flex items-center gap-2">
                       <span className="text-base shrink-0 leading-none" role="img" aria-hidden="true">
                         {group.category.icon}
@@ -1693,19 +1795,22 @@ const App: React.FC = () => {
                     </span>
                   </div>
 
-                  {group.items.map(item => (
-                    <ItemCard 
-                      key={item.id} 
-                      item={item} 
-                      onUpdate={(u) => setItems(prev => prev.map(i => i.id === item.id ? { ...i, addedAt: Date.now(), ...u } : i))} 
-                      onDelete={() => handleDeleteItem(item)} 
-                      textSizeClass="" 
-                      titleSizeClass="" 
-                      settings={settings} 
-                      isViewMode={isViewMode}
-                      onEditingChange={handleItemEditingChange}
-                    />
-                  ))}
+                  <div className={isViewMode ? "space-y-0" : "space-y-1.5"}>
+                    {group.items.map(item => (
+                      <ItemCard 
+                        key={item.id} 
+                        item={item} 
+                        onUpdate={(u) => setItems(prev => prev.map(i => i.id === item.id ? { ...i, addedAt: Date.now(), ...u } : i))} 
+                        onDelete={() => handleDeleteItem(item)} 
+                        textSizeClass="" 
+                        titleSizeClass="" 
+                        settings={settings} 
+                        isViewMode={isViewMode}
+                        onEditingChange={handleItemEditingChange}
+                        onOpenCategorySheet={setCategorySheetItem}
+                      />
+                    ))}
+                  </div>
                 </div>
               ))}
               {viewModeData.categoryGroups.length === 0 && (
@@ -1721,7 +1826,7 @@ const App: React.FC = () => {
             </>
           ) : isViewMode ? (
             // Modo Visualização com ordenação simples em lista contínua (Alfabético, Valor ou Última Modificação)
-            <>
+            <div className="space-y-0 divide-y-0">
               {viewModeData.items.map(item => (
                 <ItemCard 
                   key={item.id} 
@@ -1733,6 +1838,7 @@ const App: React.FC = () => {
                   settings={settings} 
                   isViewMode={isViewMode}
                   onEditingChange={handleItemEditingChange}
+                  onOpenCategorySheet={setCategorySheetItem}
                 />
               ))}
               {viewModeData.items.length === 0 && (
@@ -1745,7 +1851,7 @@ const App: React.FC = () => {
                   </p>
                 </div>
               )}
-            </>
+            </div>
           ) : (
             // Modo de Edição normal na Minha Lista (seções Para Comprar, No Carrinho, Indisponíveis ordenadas pela opção selecionada)
             <>
@@ -1771,6 +1877,7 @@ const App: React.FC = () => {
                       settings={settings} 
                       isViewMode={isViewMode}
                       onEditingChange={handleItemEditingChange}
+                      onOpenCategorySheet={setCategorySheetItem}
                     />
                   ))}
                 </div>
@@ -1797,6 +1904,9 @@ const App: React.FC = () => {
         className="pointer-events-none w-full shrink-0"
         aria-hidden="true" 
       />
+
+      {/* Espaçador final generoso para a barra verde fixa do total não cobrir o último item */}
+      <div className="h-32 sm:h-36 w-full shrink-0 pointer-events-none" aria-hidden="true" />
     </main>
 
       {/* Toast / Snackbar de Desfazer Exclusão (3 segundos) */}
@@ -2001,6 +2111,19 @@ const App: React.FC = () => {
           onClose={() => setShowExportModal(false)} 
           lang={currentLang}
           themeConfig={activeAppTheme}
+        />
+      )}
+
+      {categorySheetItem && (
+        <CategoryPickerSheet 
+          item={categorySheetItem}
+          currentCategory={resolveItemCategory(categorySheetItem, customCategories, productCategoryOverrides)}
+          customCategories={customCategories}
+          onSelectCategory={(cat) => handleChangeCategory(categorySheetItem, cat)}
+          onCreateCategory={handleCreateCustomCategory}
+          onClose={() => setCategorySheetItem(null)}
+          themeConfig={activeAppTheme}
+          lang={currentLang}
         />
       )}
 

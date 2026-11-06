@@ -29,6 +29,7 @@ export interface ShoppingItem {
   isPurchased: boolean;
   addedAt: number;
   marketId?: string;
+  categoryId?: string;
 }
 
 export type SwipeAction = 'purchase' | 'unavailable' | 'delete' | 'market' | 'none';

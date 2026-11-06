@@ -72,17 +72,19 @@ export const Header: React.FC<HeaderProps> = ({
         backgroundColor: themeConfig.colors.background,
         color: themeConfig.colors.text
       } : undefined}
-      className="px-6 pt-6 pb-3 flex flex-col gap-4 transition-colors"
+      className={`px-4 sm:px-6 transition-colors ${
+        isViewMode ? 'pt-2.5 pb-1 flex flex-col gap-1.5' : 'pt-6 pb-3 flex flex-col gap-4'
+      }`}
     >
       {/* Linha superior: Título à esquerda e exatamente 2 botões à direita alinhados ao título */}
       <div className="flex justify-between items-center gap-3">
-        <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+        <h1 className="text-base sm:text-xl font-bold flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
           <AppLogo 
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl shrink-0" 
+            className={`${isViewMode ? 'w-6 h-6 sm:w-7 sm:h-7' : 'w-7 h-7 sm:w-8 sm:h-8'} rounded-xl shrink-0`}
             backgroundColor={themeConfig ? themeConfig.colors.primary : undefined}
           />
           <span 
-            className={`truncate leading-tight min-w-0 ${isViewMode ? 'uppercase tracking-wider font-extrabold' : ''}`}
+            className={`truncate leading-tight min-w-0 ${isViewMode ? 'uppercase tracking-wider font-extrabold text-sm sm:text-base' : 'text-lg sm:text-2xl'}`}
             style={themeConfig ? { color: isViewMode ? themeConfig.colors.primary : themeConfig.colors.text } : undefined}
             title={listTitle}
           >
@@ -91,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
         </h1>
 
         {/* Exatamente 2 botões alinhados à direita, alinhados ao título, sem empurrar o seletor */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Botão 1: Visualizar (olho) */}
           <button 
             type="button"
@@ -103,11 +105,11 @@ export const Header: React.FC<HeaderProps> = ({
               backgroundColor: themeConfig.colors.inputBg, 
               color: themeConfig.colors.textSecondary 
             } : undefined}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 cursor-pointer shadow-none shrink-0"
+            className={`${isViewMode ? 'w-8 h-8 sm:w-9 sm:h-9' : 'w-10 h-10'} flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 cursor-pointer shadow-none shrink-0`}
             title={t.viewMode}
             aria-label={t.viewMode}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className={isViewMode ? "h-4 w-4 sm:h-5 sm:w-5" : "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
@@ -121,11 +123,11 @@ export const Header: React.FC<HeaderProps> = ({
               backgroundColor: themeConfig.colors.inputBg,
               color: themeConfig.colors.textSecondary
             } : undefined}
-            className="w-10 h-10 flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 cursor-pointer shadow-none shrink-0"
+            className={`${isViewMode ? 'w-8 h-8 sm:w-9 sm:h-9' : 'w-10 h-10'} flex items-center justify-center rounded-xl transition-all active:scale-95 border-0 cursor-pointer shadow-none shrink-0`}
             title={t.settingsTitle}
             aria-label={t.settingsTitle}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className={isViewMode ? "h-4 w-4 sm:h-5 sm:w-5" : "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
@@ -167,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
       )}
       
       {isViewMode && (
-        <div className="flex overflow-x-auto no-scrollbar gap-2 -mx-2 px-2 pb-1 animate-in fade-in duration-200">
+        <div className="flex overflow-x-auto no-scrollbar gap-1.5 -mx-1 px-1 pb-0.5 animate-in fade-in duration-200">
           {/* Chip Todos */}
           <button 
             onClick={() => onFilterChange('all')}
@@ -178,7 +180,7 @@ export const Header: React.FC<HeaderProps> = ({
               backgroundColor: themeConfig.isDark ? '#1E293B' : '#F3F4F6',
               color: themeConfig.colors.textSecondary
             }) : undefined}
-            className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
+            className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
               !themeConfig ? (currentFilter === 'all' 
                 ? (isDarkTheme ? 'bg-white text-slate-900 shadow-md' : 'bg-gray-900 text-white shadow-md')
                 : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-gray-100 text-gray-600')) : 'shadow-none'
@@ -197,7 +199,7 @@ export const Header: React.FC<HeaderProps> = ({
               backgroundColor: themeConfig.colors.chipAvailableBg,
               color: themeConfig.colors.chipAvailableText
             }) : (currentFilter === 'pending' ? { backgroundColor: themeBlue } : undefined)}
-            className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
+            className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
               !themeConfig ? (currentFilter === 'pending' 
                 ? 'text-white shadow-md' 
                 : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-blue-50 text-blue-700')) : 'shadow-none'
@@ -216,7 +218,7 @@ export const Header: React.FC<HeaderProps> = ({
               backgroundColor: themeConfig.colors.chipPurchasedBg,
               color: themeConfig.colors.chipPurchasedText
             }) : undefined}
-            className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
+            className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
               !themeConfig ? (currentFilter === 'purchased' ? 'bg-green-600 text-white shadow-md' : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-green-100 text-green-700')) : 'shadow-none'
             }`}
           >
@@ -233,7 +235,7 @@ export const Header: React.FC<HeaderProps> = ({
               backgroundColor: themeConfig.colors.chipUnavailableBg,
               color: themeConfig.colors.chipUnavailableText
             }) : undefined}
-            className={`whitespace-nowrap px-2.5 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
+            className={`whitespace-nowrap px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-tight transition-all shrink-0 ${
               !themeConfig ? (currentFilter === 'unavailable' ? 'bg-amber-600 text-white shadow-md' : (isDarkTheme ? 'bg-slate-800 text-slate-300' : 'bg-amber-100 text-amber-700')) : 'shadow-none'
             }`}
           >

@@ -88,6 +88,14 @@ export const translations = {
     swipeDelete: 'Excluir',
     swipeUnmark: 'Desmarcar',
 
+    // Change Category Bottom Sheet
+    changeCategoryTitle: 'Alterar Categoria',
+    changeCategorySubtitle: (name: string) => `Escolha a categoria para "${name}"`,
+    newCategory: '+ Nova categoria',
+    newCategoryPlaceholder: 'Nome da nova categoria...',
+    createCategoryBtn: 'Criar e aplicar',
+    categoryChanged: (catName: string) => `Categoria alterada para "${catName}"`,
+
     // Settings
     settingsTitle: 'Configurações',
     settingsSubtitle: 'Ajuste a experiência às suas necessidades',
@@ -296,6 +304,14 @@ export const translations = {
     swipeUnavailable: 'Unavailable',
     swipeDelete: 'Delete',
     swipeUnmark: 'Unmark',
+
+    // Change Category Bottom Sheet
+    changeCategoryTitle: 'Change Category',
+    changeCategorySubtitle: (name: string) => `Choose category for "${name}"`,
+    newCategory: '+ New category',
+    newCategoryPlaceholder: 'New category name...',
+    createCategoryBtn: 'Create & apply',
+    categoryChanged: (catName: string) => `Category changed to "${catName}"`,
 
     // Settings
     settingsTitle: 'Settings',

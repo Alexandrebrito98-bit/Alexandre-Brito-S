@@ -16,6 +16,7 @@ interface ItemCardProps {
   isViewMode?: boolean;
   onOpenSettingsMarkets?: () => void;
   onEditingChange?: (isEditing: boolean, mode?: 'hold' | 'edit') => void;
+  onOpenCategorySheet?: (item: ShoppingItem) => void;
 }
 
 export const ItemCard: React.FC<ItemCardProps> = ({ 
@@ -23,11 +24,18 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   onUpdate, 
   onDelete, 
   textSizeClass, 
+  titleSizeClass,
   settings, 
   isViewMode = false,
   onOpenSettingsMarkets,
-  onEditingChange
+  onEditingChange,
+  onOpenCategorySheet
 }) => {
+  const itemTextClass = titleSizeClass || textSizeClass || (
+    settings.textSize === 'small' ? 'text-xs sm:text-sm' :
+    settings.textSize === 'large' ? 'text-base sm:text-lg' :
+    'text-sm sm:text-base'
+  );
   const currentLang = settings.language || 'pt';
   const t = getTranslation(currentLang);
   const locale = currentLang === 'en' ? 'en-US' : 'pt-BR';
@@ -168,13 +176,12 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   const handlePointerDown = (e: React.PointerEvent) => {
     if (isViewMode || isEditingName || showDeleteConfirm || showMarketPicker) return;
     
-    // Ignore clicks on buttons, inputs, action menu or product name
+    // Ignore clicks on buttons, inputs or action menu
     const target = e.target as HTMLElement;
     if (
       target.closest('button') || 
       target.closest('input') || 
-      target.closest('[data-action-menu="true"]') ||
-      target.closest('[data-item-name="true"]')
+      target.closest('[data-action-menu="true"]')
     ) {
       return;
     }
@@ -189,11 +196,17 @@ export const ItemCard: React.FC<ItemCardProps> = ({
     longPressTimerRef.current = setTimeout(() => {
       setIsLongPressing(false);
       touchStartPosRef.current = null;
-      setIsMenuOpen(true);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(50);
+        try {
+          navigator.vibrate(50);
+        } catch (_) {}
       }
-    }, 1000);
+      if (onOpenCategorySheet) {
+        onOpenCategorySheet(item);
+      } else {
+        setIsMenuOpen(true);
+      }
+    }, 500);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -467,89 +480,109 @@ export const ItemCard: React.FC<ItemCardProps> = ({
   };
 
   if (isViewMode) {
+    const isMultiQty = item.quantity > 1;
+
     return (
       <div 
         style={{
-          backgroundColor: !item.isAvailable 
-            ? (isDarkCard ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0, 0, 0, 0.03)') 
-            : defaultCardBg,
-          borderColor: itemCardBorder
+          borderBottomColor: isDarkCard ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'
         }}
-        className={`flex items-center py-2 sm:py-2.5 px-3 rounded-xl border my-1 transition-all ${!item.isAvailable ? (isDarkCard ? 'bg-slate-900/40' : 'bg-gray-50/50') : ''}`}
+        onPointerDown={(e) => {
+          touchStartPosRef.current = { x: e.clientX, y: e.clientY };
+          cancelLongPress();
+          longPressTimerRef.current = setTimeout(() => {
+            touchStartPosRef.current = null;
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              try { navigator.vibrate(50); } catch (_) {}
+            }
+            onOpenCategorySheet?.(item);
+          }, 500);
+        }}
+        onPointerMove={(e) => {
+          if (!touchStartPosRef.current) return;
+          const dx = e.clientX - touchStartPosRef.current.x;
+          const dy = e.clientY - touchStartPosRef.current.y;
+          if (Math.hypot(dx, dy) > 8) {
+            cancelLongPress();
+          }
+        }}
+        onPointerUp={cancelLongPress}
+        onPointerCancel={cancelLongPress}
+        className={`flex items-center justify-between min-h-[52px] sm:min-h-[56px] py-1.5 px-1 border-b transition-colors select-none ${
+          !item.isAvailable ? 'opacity-50' : ''
+        }`}
       >
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex items-center gap-2">
-            <span 
-              style={{
-                color: !item.isAvailable ? currentAppTheme.colors.textSecondary : currentAppTheme.colors.text
-              }}
-              className={`font-bold truncate ${textSizeClass} ${
-                !item.isAvailable ? 'line-through text-gray-400' : isDarkCard ? 'text-slate-100' : 'text-gray-800'
-              }`}
-            >
-              {item.name}
-            </span>
-            <span 
-              style={item.isAvailable ? { 
-                backgroundColor: currentAppTheme.colors.chipAvailableBg,
-                color: currentAppTheme.colors.chipAvailableText
-              } : undefined}
-              className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-tighter shrink-0 shadow-none ${
-                !item.isAvailable ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
-              }`}
-            >
-              {item.quantity} {t.unitShort}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-1">
-            {item.isPurchased && item.isAvailable && (
-              <span 
-                style={{
-                  backgroundColor: currentAppTheme.colors.chipPurchasedBg,
-                  color: currentAppTheme.colors.chipPurchasedText
-                }}
-                className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase shadow-none"
-              >
-                {t.purchasedBadge}
-              </span>
-            )}
-            {!item.isAvailable && (
-              <span 
-                style={{
-                  backgroundColor: currentAppTheme.colors.chipUnavailableBg,
-                  color: currentAppTheme.colors.chipUnavailableText
-                }}
-                className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase shadow-none"
-              >
-                {t.unavailableBadge}
-              </span>
-            )}
-            {associatedMarket && (
-              <span 
-                style={{ backgroundColor: currentAppTheme.colors.inputBg, color: currentAppTheme.colors.textSecondary }}
-                className="text-[8px] font-bold px-1.5 py-0.5 rounded-md tracking-tight shadow-none"
-              >
-                {associatedMarket.name}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end shrink-0 text-right">
+        {/* Lado Esquerdo: Nome e Qtd ("1UN") */}
+        <div className="flex items-center gap-2 min-w-0 flex-1 mr-3">
           <span 
             style={{
               color: !item.isAvailable ? currentAppTheme.colors.textSecondary : currentAppTheme.colors.text
             }}
-            className={`font-bold ${textSizeClass} ${!item.isAvailable ? 'text-gray-400' : isDarkCard ? 'text-slate-200' : 'text-gray-700'}`}
+            className={`font-bold truncate ${itemTextClass} ${
+              !item.isAvailable ? 'line-through text-gray-400' : isDarkCard ? 'text-slate-100' : 'text-gray-800'
+            }`}
+            title={item.name}
+          >
+            {item.name}
+          </span>
+
+          <span 
+            style={item.isAvailable ? { 
+              backgroundColor: currentAppTheme.colors.chipAvailableBg,
+              color: currentAppTheme.colors.chipAvailableText
+            } : undefined}
+            className={`px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-tight shrink-0 shadow-none ${
+              !item.isAvailable ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
+            }`}
+          >
+            {item.quantity}{t.unitShort}
+          </span>
+
+          {/* Badges sutis de status se comprado ou indisponível */}
+          {item.isPurchased && item.isAvailable && (
+            <span 
+              style={{
+                backgroundColor: currentAppTheme.colors.chipPurchasedBg,
+                color: currentAppTheme.colors.chipPurchasedText
+              }}
+              className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase shrink-0 shadow-none"
+            >
+              {t.purchasedBadge}
+            </span>
+          )}
+          {!item.isAvailable && (
+            <span 
+              style={{
+                backgroundColor: currentAppTheme.colors.chipUnavailableBg,
+                color: currentAppTheme.colors.chipUnavailableText
+              }}
+              className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase shrink-0 shadow-none"
+            >
+              {t.unavailableBadge}
+            </span>
+          )}
+        </div>
+
+        {/* Lado Direito: Preço e Subtotal apenas se Qtd > 1 */}
+        <div className="flex flex-col items-end shrink-0 text-right justify-center">
+          <span 
+            style={{
+              color: !item.isAvailable ? currentAppTheme.colors.textSecondary : currentAppTheme.colors.text
+            }}
+            className={`font-bold ${itemTextClass} leading-tight ${
+              !item.isAvailable ? 'text-gray-400' : isDarkCard ? 'text-slate-200' : 'text-gray-700'
+            }`}
           >
             {currency}{item.unitPrice.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          <span 
-            style={{ color: currentAppTheme.colors.textSecondary }}
-            className="text-[9px] font-medium"
-          >
-            {t.subtotal} {currency}{subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
+          {isMultiQty && (
+            <span 
+              style={{ color: currentAppTheme.colors.textSecondary }}
+              className="text-[10px] font-semibold leading-tight mt-0.5"
+            >
+              {t.subtotal} {currency}{subtotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
         </div>
       </div>
     );

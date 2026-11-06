@@ -1,4 +1,4 @@
-import { Language } from '../types';
+import { Language, ShoppingItem } from '../types';
 
 export interface CategoryDefinition {
   id: string;
@@ -8,6 +8,7 @@ export interface CategoryDefinition {
   };
   icon: string; // Emoji for neat visual presentation
   keywords: string[];
+  isCustom?: boolean;
 }
 
 export const CATEGORIES: CategoryDefinition[] = [
@@ -175,7 +176,7 @@ export const CATEGORIES: CategoryDefinition[] = [
   }
 ];
 
-function normalize(text: string): string {
+export function normalizeItemName(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD')
@@ -184,17 +185,71 @@ function normalize(text: string): string {
 }
 
 /**
- * Identifies the category of an item name based on semantic keyword matching.
+ * Returns all available categories: standard ones, any custom user-created ones, and 'other' at the end.
  */
-export function detectCategory(itemName: string): CategoryDefinition {
-  const normalizedName = normalize(itemName);
+export function getAllCategories(customCategories: CategoryDefinition[] = []): CategoryDefinition[] {
+  const otherCat = CATEGORIES.find(c => c.id === 'other') || {
+    id: 'other',
+    names: { pt: 'Outros', en: 'Others' },
+    icon: '📦',
+    keywords: []
+  };
+  const standardWithoutOther = CATEGORIES.filter(c => c.id !== 'other');
+  return [...standardWithoutOther, ...customCategories, otherCat];
+}
+
+/**
+ * Finds a category by its ID.
+ */
+export function getCategoryById(id: string, customCategories: CategoryDefinition[] = []): CategoryDefinition | undefined {
+  const all = getAllCategories(customCategories);
+  return all.find(c => c.id === id);
+}
+
+/**
+ * Identifies the category of an item name based on semantic keyword matching,
+ * checking user overrides first, then custom categories, then standard categories.
+ */
+export function detectCategory(
+  itemName: string,
+  customCategories: CategoryDefinition[] = [],
+  overrides?: Record<string, string>
+): CategoryDefinition {
+  const normalizedName = normalizeItemName(itemName);
+  if (!normalizedName) {
+    return CATEGORIES.find(c => c.id === 'other') || CATEGORIES[CATEGORIES.length - 1];
+  }
+
+  // 1. Check user override for this product name
+  if (overrides && overrides[normalizedName]) {
+    const overrideId = overrides[normalizedName];
+    const match = getCategoryById(overrideId, customCategories);
+    if (match) return match;
+  }
+
+  // 2. Check custom categories (name or keywords)
+  for (const cat of customCategories) {
+    const namePt = normalizeItemName(cat.names.pt);
+    const nameEn = normalizeItemName(cat.names.en || cat.names.pt);
+    if (normalizedName === namePt || normalizedName === nameEn || normalizedName.includes(namePt)) {
+      return cat;
+    }
+    for (const kw of cat.keywords || []) {
+      const normalizedKw = normalizeItemName(kw);
+      if (normalizedName === normalizedKw || normalizedName.includes(normalizedKw)) {
+        return cat;
+      }
+    }
+  }
+
+  // 3. Check standard categories
   const words = normalizedName.split(/[\s,./\-_+]+/).filter(Boolean);
 
   for (const cat of CATEGORIES) {
     if (cat.id === 'other') continue;
 
     for (const kw of cat.keywords) {
-      const normalizedKw = normalize(kw);
+      const normalizedKw = normalizeItemName(kw);
       
       // Exact keyword phrase match inside the item name
       if (normalizedName === normalizedKw || normalizedName.includes(normalizedKw)) {
@@ -210,6 +265,24 @@ export function detectCategory(itemName: string): CategoryDefinition {
 
   // Default fallback category
   return CATEGORIES.find(c => c.id === 'other') || CATEGORIES[CATEGORIES.length - 1];
+}
+
+/**
+ * Resolves the category for a given ShoppingItem:
+ * 1. If the item already has an explicit categoryId, look it up.
+ * 2. If an override exists for this item name, look it up.
+ * 3. Fallback to keyword detectCategory.
+ */
+export function resolveItemCategory(
+  item: ShoppingItem,
+  customCategories: CategoryDefinition[] = [],
+  overrides?: Record<string, string>
+): CategoryDefinition {
+  if (item.categoryId) {
+    const match = getCategoryById(item.categoryId, customCategories);
+    if (match) return match;
+  }
+  return detectCategory(item.name, customCategories, overrides);
 }
 
 /**
